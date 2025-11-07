@@ -9,7 +9,7 @@ import LoginModal from './components/LoginModal'
 import HorizontalFilters from './components/HorizontalFilters'
 import Pagination from './components/Pagination'
 import { exportToCSV } from './utils/csvExport'
-import type { CompanyFilters, Investment, Company } from './types/company'
+import type { CompanyFilters, Investment } from './types/company'
 
 function App() {
   const [filters, setFilters] = useState<CompanyFilters>({ limit: 25, offset: 0 })
