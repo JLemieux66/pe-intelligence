@@ -1,3 +1,6 @@
 {
-  "builds": []
+  "buildCommand": "cd frontend-react && npm install && npm run build",
+  "outputDirectory": "frontend-react/dist",
+  "framework": null,
+  "installCommand": "npm install --prefix frontend-react"
 }
