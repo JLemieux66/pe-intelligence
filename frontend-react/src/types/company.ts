@@ -1,0 +1,142 @@
+export interface Investment {
+  investment_id: number  // Made required for proper indexing
+  company_id: number
+  company_name: string
+  pe_firm_name: string
+  status: string
+  raw_status?: string
+  exit_type?: string
+  exit_info?: string
+  exit_year?: string  // Year company exited (from edit modal)
+  investment_year?: string
+  sector?: string
+  revenue_range?: string
+  predicted_revenue?: number
+  prediction_confidence?: number  // Confidence score 0-1
+  employee_count?: string
+  industry_category?: string  // Comma-separated string (legacy)
+  industries?: string[]  // Array of individual industry tags (new)
+  headquarters?: string
+  website?: string
+  linkedin_url?: string
+  crunchbase_url?: string
+  // Funding data
+  total_funding_usd?: number
+  num_funding_rounds?: number
+  latest_funding_type?: string
+  latest_funding_date?: string
+  funding_stage_encoded?: number
+  avg_round_size_usd?: number
+  total_investors?: number
+  // PitchBook data
+  primary_industry_group?: string
+  primary_industry_sector?: string
+  verticals?: string
+  current_revenue_usd?: number  // Revenue in millions USD
+  hq_location?: string
+  hq_country?: string
+  last_known_valuation_usd?: number  // Valuation in millions USD
+}
+
+export interface Company {
+  id: number
+  name: string
+  former_name?: string  // Former/previous company name (fka/formerly)
+  pe_firms: string[]
+  status: string
+  exit_type?: string
+  investment_year?: string
+  headquarters?: string
+  website?: string
+  linkedin_url?: string
+  crunchbase_url?: string
+  description?: string
+  revenue_range?: string
+  predicted_revenue?: number
+  prediction_confidence?: number  // Confidence score 0-1
+  employee_count?: string  // Display value (best available)
+  crunchbase_employee_range?: string  // Crunchbase range (e.g., "501-1,000")
+  scraped_employee_count?: number  // LinkedIn exact count
+  industry_category?: string  // Comma-separated string (legacy)
+  industries?: string[]  // Array of individual industry tags (new)
+  // Funding data
+  total_funding_usd?: number
+  num_funding_rounds?: number
+  latest_funding_type?: string
+  latest_funding_date?: string
+  funding_stage_encoded?: number
+  avg_round_size_usd?: number
+  total_investors?: number
+  // Public company data
+  is_public?: boolean
+  stock_exchange?: string
+  // PitchBook enrichment data
+  investor_name?: string  // PE firm name from PitchBook
+  investor_status?: string  // Active, Former, etc.
+  investor_holding?: string  // Minority, Majority, etc.
+  current_revenue_usd?: number  // Revenue in millions USD
+  last_known_valuation_usd?: number  // Valuation in millions USD
+  primary_industry_group?: string
+  primary_industry_sector?: string
+  hq_location?: string
+  hq_country?: string
+  last_financing_date?: string
+  last_financing_size_usd?: number  // Financing size in millions USD
+  last_financing_deal_type?: string
+  verticals?: string
+}
+
+export interface PEFirm {
+  id: number
+  name: string
+  total_investments: number
+  active_count: number
+  exit_count: number
+}
+
+export interface Stats {
+  total_companies: number
+  total_investments: number
+  total_pe_firms: number
+  active_investments: number
+  exited_investments: number
+  co_investments: number
+  enrichment_rate: number
+}
+
+export interface CompanyFilters {
+  pe_firm?: string
+  status?: string
+  exit_type?: string
+  industry?: string
+  search?: string
+  limit?: number
+  offset?: number
+  // PitchBook filters
+  industry_group?: string
+  industry_sector?: string
+  verticals?: string
+  // Location filters
+  country?: string
+  state_region?: string
+  city?: string
+  // Range filters
+  min_revenue?: number
+  max_revenue?: number
+  min_employees?: number
+  max_employees?: number
+  min_confidence?: number
+}
+
+export interface LocationData {
+  name: string
+  count: number
+  country?: string  // For states/cities
+  state?: string    // For cities
+}
+
+export interface LocationsResponse {
+  countries: LocationData[]
+  states: LocationData[]
+  cities: LocationData[]
+}

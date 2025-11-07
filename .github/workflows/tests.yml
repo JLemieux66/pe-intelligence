@@ -1,0 +1,100 @@
+name: Automated Testing CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  backend-tests:
+    name: Backend Tests (Python)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install pipenv
+      run: pip install pipenv
+    
+    - name: Install dependencies
+      run: pipenv install --dev
+    
+    - name: Run pytest
+      run: pipenv run pytest tests/ --cov=backend --cov=src --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: backend
+        name: backend-coverage
+  
+  frontend-tests:
+    name: Frontend Tests (React)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend-react/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: ./frontend-react
+      run: npm ci
+    
+    - name: Run tests
+      working-directory: ./frontend-react
+      run: npm test -- --coverage
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./frontend-react/coverage/coverage-final.json
+        flags: frontend
+        name: frontend-coverage
+  
+  lint:
+    name: Code Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install linters
+      run: |
+        pip install flake8 black
+    
+    - name: Run flake8
+      run: flake8 backend/ src/ --max-line-length=120 --ignore=E203,W503
+    
+    - name: Run black
+      run: black --check backend/ src/
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install frontend linters
+      working-directory: ./frontend-react
+      run: npm ci
+    
+    - name: Run ESLint
+      working-directory: ./frontend-react
+      run: npm run lint
