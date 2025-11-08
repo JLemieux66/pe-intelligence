@@ -11,9 +11,9 @@ from pydantic import BaseModel
 from src.models.database_models_v2 import get_session, PEFirm, Company, CompanyPEInvestment, FundingRound
 from src.enrichment.crunchbase_helpers import decode_revenue_range, decode_employee_count
 from backend.auth import authenticate_admin, create_access_token, verify_admin_token
+from datetime import datetime
 import os
 import json
-import os
 
 def get_employee_count_display(company):
     """
@@ -74,13 +74,19 @@ app = FastAPI(
 )
 
 # Enable CORS for frontend access
+# Get allowed origins from environment variable or use defaults
+allowed_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:3000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Total-Count"],  # Expose custom header to frontend
+    expose_headers=["X-Total-Count"],
 )
 
 # Response Models
@@ -220,6 +226,49 @@ class SimilarCompaniesResponse(BaseModel):
     matches: List[SimilarCompanyMatch]
     total_results: int
 
+@app.on_event("startup")
+async def validate_environment():
+    """Validate required environment variables on startup"""
+    required_vars = ["DATABASE_URL", "JWT_SECRET_KEY", "ADMIN_PASSWORD_HASH", "ADMIN_EMAIL"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    
+    if missing_vars:
+        error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
+        print(f"❌ STARTUP ERROR: {error_msg}")
+        raise RuntimeError(error_msg)
+    
+    print("✅ All required environment variables are set")
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    session = get_session()
+    try:
+        # Test database connectivity
+        session.execute("SELECT 1")
+        db_status = "connected"
+        status_code = 200
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+        status_code = 503
+    finally:
+        session.close()
+    
+    health_data = {
+        "status": "healthy" if status_code == 200 else "unhealthy",
+        "database": db_status,
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "2.0.0"
+    }
+    
+    return Response(
+        content=json.dumps(health_data),
+        status_code=status_code,
+        media_type="application/json"
+    )
+
+
 @app.get("/")
 def read_root():
     """API root endpoint"""
@@ -227,6 +276,7 @@ def read_root():
         "message": "PE Portfolio API V2",
         "version": "2.0.0",
         "endpoints": {
+            "health": "/health",
             "companies": "/api/companies",
             "investments": "/api/investments",
             "pe_firms": "/api/pe-firms",

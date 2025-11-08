@@ -48,10 +48,22 @@ dist/
 # Logs
 *.log
 logs/
+app.log*
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Documentation (generated)
+CHANGES_SUMMARY.md
+IMPROVEMENT_PLAN.md
 
 # OpenHands
 .openhands/cache/

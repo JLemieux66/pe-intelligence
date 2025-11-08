@@ -308,9 +308,18 @@ def get_database_url():
 
 
 def create_database_engine():
-    """Create and return database engine"""
+    """Create and return database engine with connection pooling"""
     database_url = get_database_url()
-    engine = create_engine(database_url, echo=False)
+    
+    # Configure connection pooling for production reliability
+    engine = create_engine(
+        database_url,
+        echo=False,
+        pool_size=10,           # Maximum number of permanent connections
+        max_overflow=20,        # Maximum number of temporary connections
+        pool_pre_ping=True,     # Verify connections are alive before using
+        pool_recycle=3600,      # Recycle connections after 1 hour
+    )
     return engine
 
 
