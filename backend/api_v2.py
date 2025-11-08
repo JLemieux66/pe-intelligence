@@ -4,16 +4,27 @@ REST API endpoints using v2 database schema
 Updated: Added admin edit endpoints (PUT/DELETE) and authentication
 Version: 1.2 - Debug prediction_confidence and funding data retrieval
 """
-from fastapi import FastAPI, Query, HTTPException, Header, Depends, Response
+from fastapi import FastAPI, Query, HTTPException, Header, Depends, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from typing import Optional, List, Dict, Tuple
 from pydantic import BaseModel
 from src.models.database_models_v2 import get_session, PEFirm, Company, CompanyPEInvestment, FundingRound
 from src.enrichment.crunchbase_helpers import decode_revenue_range, decode_employee_count
 from backend.auth import authenticate_admin, create_access_token, verify_admin_token
+from backend.logging_config import setup_logging
+from backend.cache import cache
 from datetime import datetime
 import os
 import json
+import logging
+import traceback
+
+# Setup logging
+logger = setup_logging(
+    log_level=os.getenv("LOG_LEVEL", "INFO"),
+    log_file=os.getenv("LOG_FILE", "app.log")
+)
 
 def get_employee_count_display(company):
     """
@@ -234,10 +245,33 @@ async def validate_environment():
     
     if missing_vars:
         error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
-        print(f"❌ STARTUP ERROR: {error_msg}")
+        logger.error(f"❌ STARTUP ERROR: {error_msg}")
         raise RuntimeError(error_msg)
     
-    print("✅ All required environment variables are set")
+    logger.info("✅ All required environment variables are set")
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler for uncaught exceptions"""
+    error_id = f"{datetime.utcnow().timestamp()}"
+    
+    # Log the full exception with traceback
+    logger.error(
+        f"Unhandled exception [{error_id}]: {str(exc)}\n"
+        f"Path: {request.method} {request.url}\n"
+        f"Traceback:\n{traceback.format_exc()}"
+    )
+    
+    # Return user-friendly error
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "message": "An unexpected error occurred. Please contact support.",
+            "error_id": error_id
+        }
+    )
 
 
 @app.get("/health")
@@ -291,9 +325,11 @@ def login(credentials: LoginRequest):
     Login endpoint for admin authentication
     Returns JWT token on successful login
     """
+    logger.info(f"Login attempt for email: {credentials.email}")
     user = authenticate_admin(credentials.email, credentials.password)
 
     if not user:
+        logger.warning(f"Failed login attempt for email: {credentials.email}")
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
@@ -301,6 +337,7 @@ def login(credentials: LoginRequest):
 
     # Create access token
     access_token = create_access_token(data={"sub": user["email"], "role": user["role"]})
+    logger.info(f"Successful login for email: {credentials.email}")
 
     return LoginResponse(
         access_token=access_token,
@@ -311,7 +348,13 @@ def login(credentials: LoginRequest):
 
 @app.get("/api/stats", response_model=StatsResponse)
 def get_stats():
-    """Get overall portfolio statistics"""
+    """Get overall portfolio statistics (cached for 5 minutes)"""
+    # Check cache first
+    cached_stats = cache.get("stats")
+    if cached_stats:
+        logger.debug("Returning cached stats")
+        return cached_stats
+    
     session = get_session()
     
     try:
@@ -331,7 +374,7 @@ def get_stats():
         enriched = session.query(Company).filter(Company.linkedin_url != None).count()
         enrichment_rate = (enriched / total_companies * 100) if total_companies > 0 else 0
         
-        return StatsResponse(
+        stats = StatsResponse(
             total_companies=total_companies,
             total_investments=total_investments,
             total_pe_firms=total_pe_firms,
@@ -340,6 +383,12 @@ def get_stats():
             co_investments=co_investments,
             enrichment_rate=round(enrichment_rate, 1)
         )
+        
+        # Cache for 5 minutes
+        cache.set("stats", stats, ttl_seconds=300)
+        logger.debug("Stats calculated and cached")
+        
+        return stats
     finally:
         session.close()
 
@@ -475,6 +524,7 @@ def get_pitchbook_metadata():
 
 @app.get("/api/investments", response_model=List[InvestmentResponse])
 def get_investments(
+    response: Response,
     pe_firm: Optional[str] = Query(None, description="Filter by PE firm name(s), comma-separated for multiple"),
     status: Optional[str] = Query(None, description="Filter by status (Active/Exit)"),
     exit_type: Optional[str] = Query(None, description="Filter by exit type (IPO/Acquisition)"),
@@ -600,8 +650,14 @@ def get_investments(
         # Order by company name
         query = query.order_by(Company.name)
         
+        # Get total count before pagination
+        total_count = query.count()
+        
         # Apply pagination
         investments = query.offset(offset).limit(limit).all()
+        
+        # Add total count to response header
+        response.headers["X-Total-Count"] = str(total_count)
         
         # Format response
         result = []
@@ -906,17 +962,17 @@ def get_companies(
             joinedload(Company.investments).joinedload(CompanyPEInvestment.pe_firm)
         )
         
-        # Get total count before pagination
-        total_count = query.count()
-        
-        # Add total count to response headers
-        response.headers["X-Total-Count"] = str(total_count)
-        
         # Order by name
         query = query.order_by(Company.name)
         
+        # Get total count before pagination
+        total_count = query.count()
+        
         # Apply pagination
         companies = query.offset(offset).limit(limit).all()
+        
+        # Add total count to response header
+        response.headers["X-Total-Count"] = str(total_count)
         
         # Format response with PE firms list
         result = []
@@ -1248,8 +1304,8 @@ class CompanyUpdate(BaseModel):
     state_region: Optional[str] = None
     country: Optional[str] = None
     industry_category: Optional[str] = None
-    revenue_range: Optional[str] = None  # Crunchbase code
-    employee_count: Optional[str] = None  # Crunchbase code
+    revenue_range: Optional[str] = None
+    employee_count: Optional[str] = None
     is_public: Optional[bool] = None
     ipo_exchange: Optional[str] = None
     ipo_date: Optional[str] = None
@@ -1261,6 +1317,42 @@ class CompanyUpdate(BaseModel):
     last_known_valuation_usd: Optional[float] = None
     hq_location: Optional[str] = None
     hq_country: Optional[str] = None
+    
+    class Config:
+        # Validation rules
+        str_min_length = 1
+        str_max_length = 1000
+    
+    @classmethod
+    def validate_url(cls, v, field_name):
+        """Validate URL format"""
+        if v and not (v.startswith('http://') or v.startswith('https://')):
+            raise ValueError(f'{field_name} must start with http:// or https://')
+        return v
+    
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate_fields
+    
+    @classmethod
+    def validate_fields(cls, values):
+        """Custom validation for company update"""
+        if 'website' in values and values['website']:
+            values['website'] = cls.validate_url(values['website'], 'website')
+        if 'linkedin_url' in values and values['linkedin_url']:
+            values['linkedin_url'] = cls.validate_url(values['linkedin_url'], 'linkedin_url')
+        if 'crunchbase_url' in values and values['crunchbase_url']:
+            values['crunchbase_url'] = cls.validate_url(values['crunchbase_url'], 'crunchbase_url')
+        
+        # Validate numeric fields are non-negative
+        if 'current_revenue_usd' in values and values['current_revenue_usd'] is not None:
+            if values['current_revenue_usd'] < 0:
+                raise ValueError('current_revenue_usd must be non-negative')
+        if 'last_known_valuation_usd' in values and values['last_known_valuation_usd'] is not None:
+            if values['last_known_valuation_usd'] < 0:
+                raise ValueError('last_known_valuation_usd must be non-negative')
+        
+        return values
 
 
 @app.put("/api/companies/{company_id}")
@@ -1311,6 +1403,10 @@ async def update_company(company_id: int, company_update: CompanyUpdate):
         
         session.commit()
         session.refresh(company)
+        
+        # Invalidate cache
+        cache.delete("stats")
+        logger.info(f"Company {company_id} updated, cache invalidated")
         
         return {
             "message": "Company updated successfully",
