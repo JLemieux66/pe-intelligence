@@ -6,11 +6,13 @@ Version: 1.2 - Debug prediction_confidence and funding data retrieval
 """
 from fastapi import FastAPI, Query, HTTPException, Header, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional, List
+from typing import Optional, List, Dict, Tuple
 from pydantic import BaseModel
 from src.models.database_models_v2 import get_session, PEFirm, Company, CompanyPEInvestment, FundingRound
 from src.enrichment.crunchbase_helpers import decode_revenue_range, decode_employee_count
 from backend.auth import authenticate_admin, create_access_token, verify_admin_token
+import os
+import json
 import os
 
 def get_employee_count_display(company):
@@ -199,6 +201,24 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str
     email: str
+
+# Similar Companies Models
+class SimilarCompaniesRequest(BaseModel):
+    company_ids: List[int]  # Input company IDs to find similar companies to
+    limit: int = 20  # Max number of similar companies to return
+    min_score: float = 60.0  # Minimum similarity score (0-100)
+    filters: Optional[Dict[str, str]] = None  # Optional filters (country, sector, etc.)
+
+class SimilarCompanyMatch(BaseModel):
+    company: CompanyResponse
+    similarity_score: float  # 0-100 similarity score
+    reasoning: str  # AI-generated reasoning
+    matching_attributes: List[str]  # Key attributes that matched
+
+class SimilarCompaniesResponse(BaseModel):
+    input_companies: List[CompanyResponse]  # Companies user selected
+    matches: List[SimilarCompanyMatch]
+    total_results: int
 
 @app.get("/")
 def read_root():
@@ -1503,22 +1523,370 @@ async def get_industries():
         session.close()
 
 
+def calculate_similarity_score(company_a: Company, company_b: Company) -> Tuple[float, List[str]]:
+    """
+    Calculate similarity score between two companies (0-100).
+    Returns: (similarity_score, matching_attributes)
+    
+    Weighted scoring:
+    - Industry/Sector: 30%
+    - Revenue Range: 25%
+    - Employee Count: 20%
+    - Geography: 15%
+    - Funding Stage: 10%
+    """
+    score = 0.0
+    matching_attributes = []
+    
+    # 1. Industry/Sector similarity (30 points)
+    industry_score = 0.0
+    if company_a.primary_industry_sector and company_b.primary_industry_sector:
+        if company_a.primary_industry_sector == company_b.primary_industry_sector:
+            industry_score = 30.0
+            matching_attributes.append(f"Same sector: {company_a.primary_industry_sector}")
+        elif company_a.primary_industry_group and company_b.primary_industry_group:
+            if company_a.primary_industry_group == company_b.primary_industry_group:
+                industry_score = 15.0  # Partial match for broader industry group
+                matching_attributes.append(f"Same industry group: {company_a.primary_industry_group}")
+    score += industry_score
+    
+    # 2. Revenue Range similarity (25 points)
+    revenue_score = 0.0
+    if company_a.revenue_range and company_b.revenue_range:
+        # Exact match = full points
+        if company_a.revenue_range == company_b.revenue_range:
+            revenue_score = 25.0
+            matching_attributes.append(f"Same revenue range: {decode_revenue_range(company_a.revenue_range)}")
+        else:
+            # Adjacent ranges = partial points
+            revenue_order = ["r_00000000", "r_00001000", "r_00010000", "r_00050000", 
+                           "r_00100000", "r_00500000", "r_01000000", "r_10000000"]
+            try:
+                idx_a = revenue_order.index(company_a.revenue_range)
+                idx_b = revenue_order.index(company_b.revenue_range)
+                diff = abs(idx_a - idx_b)
+                if diff == 1:
+                    revenue_score = 15.0  # One range apart
+                    matching_attributes.append("Similar revenue range")
+                elif diff == 2:
+                    revenue_score = 8.0  # Two ranges apart
+            except ValueError:
+                pass
+    score += revenue_score
+    
+    # 3. Employee Count similarity (20 points)
+    employee_score = 0.0
+    emp_a = company_a.employee_count or company_a.projected_employee_count
+    emp_b = company_b.employee_count or company_b.projected_employee_count
+    
+    if emp_a and emp_b:
+        # Calculate percentage difference
+        ratio = min(emp_a, emp_b) / max(emp_a, emp_b)
+        if ratio >= 0.8:  # Within 20%
+            employee_score = 20.0
+            matching_attributes.append(f"Similar employee count (~{emp_a:,})")
+        elif ratio >= 0.5:  # Within 50%
+            employee_score = 12.0
+            matching_attributes.append("Comparable company size")
+        elif ratio >= 0.3:  # Within 70%
+            employee_score = 6.0
+    score += employee_score
+    
+    # 4. Geography similarity (15 points)
+    geo_score = 0.0
+    if company_a.country and company_b.country:
+        if company_a.country == company_b.country:
+            geo_score = 15.0
+            matching_attributes.append(f"Same country: {company_a.country}")
+        # Check if both in similar regions (e.g., EU, North America)
+        elif company_a.country in ['US', 'CA'] and company_b.country in ['US', 'CA']:
+            geo_score = 10.0
+            matching_attributes.append("North America region")
+    score += geo_score
+    
+    # 5. Funding Stage similarity (10 points)
+    funding_score = 0.0
+    if company_a.funding_stage_encoded and company_b.funding_stage_encoded:
+        # Exact match
+        if company_a.funding_stage_encoded == company_b.funding_stage_encoded:
+            funding_score = 10.0
+            matching_attributes.append(f"Same funding stage")
+        # Adjacent stages
+        elif abs(company_a.funding_stage_encoded - company_b.funding_stage_encoded) == 1:
+            funding_score = 6.0
+            matching_attributes.append("Similar funding stage")
+    score += funding_score
+    
+    return round(score, 2), matching_attributes
+
+
+def generate_ai_reasoning(company_a: Company, company_b: Company, matching_attributes: List[str], similarity_score: float) -> str:
+    """
+    Generate AI-powered reasoning for why two companies are similar.
+    Uses OpenAI GPT-4 if API key is available, otherwise generates rule-based reasoning.
+    """
+    # Check if OpenAI API key is available
+    openai_api_key = os.getenv('OPENAI_API_KEY')
+    
+    if openai_api_key:
+        try:
+            import openai
+            openai.api_key = openai_api_key
+            
+            # Build context about both companies
+            company_a_context = f"""
+Company A: {company_a.name}
+- Sector: {company_a.primary_industry_sector or 'Unknown'}
+- Revenue: {decode_revenue_range(company_a.revenue_range) if company_a.revenue_range else 'Unknown'}
+- Employees: {company_a.employee_count or company_a.projected_employee_count or 'Unknown'}
+- Country: {company_a.country or 'Unknown'}
+- Description: {company_a.description[:200] if company_a.description else 'No description'}
+"""
+            
+            company_b_context = f"""
+Company B: {company_b.name}
+- Sector: {company_b.primary_industry_sector or 'Unknown'}
+- Revenue: {decode_revenue_range(company_b.revenue_range) if company_b.revenue_range else 'Unknown'}
+- Employees: {company_b.employee_count or company_b.projected_employee_count or 'Unknown'}
+- Country: {company_b.country or 'Unknown'}
+- Description: {company_b.description[:200] if company_b.description else 'No description'}
+"""
+            
+            prompt = f"""You are a private equity analyst. Explain why these two companies are similar (similarity score: {similarity_score:.1f}/100).
+
+{company_a_context}
+
+{company_b_context}
+
+Matching attributes: {', '.join(matching_attributes)}
+
+Provide a concise 2-3 sentence explanation of why these companies would make good comparables for a PE investment analysis. Focus on business model, market position, and strategic value."""
+
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a private equity analyst specializing in company comparisons."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150,
+                temperature=0.7
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"[WARNING] OpenAI reasoning failed: {e}, falling back to rule-based")
+            # Fall through to rule-based reasoning
+    
+    # Rule-based reasoning (fallback or when no API key)
+    reasoning_parts = []
+    
+    # Lead with strongest match
+    if similarity_score >= 80:
+        reasoning_parts.append(f"{company_b.name} is a highly similar company to {company_a.name}")
+    elif similarity_score >= 60:
+        reasoning_parts.append(f"{company_b.name} is a comparable company to {company_a.name}")
+    else:
+        reasoning_parts.append(f"{company_b.name} shares some characteristics with {company_a.name}")
+    
+    # Add specific matching attributes
+    if matching_attributes:
+        top_matches = matching_attributes[:2]  # Top 2 matches
+        reasoning_parts.append(", particularly in: " + " and ".join(top_matches).lower())
+    
+    # Add investment context
+    if company_a.primary_industry_sector:
+        reasoning_parts.append(f". Both operate in the {company_a.primary_industry_sector} sector")
+        
+    reasoning_parts.append(", making them suitable comparables for valuation and market analysis.")
+    
+    return "".join(reasoning_parts)
+
+
+@app.post("/api/similar-companies", response_model=SimilarCompaniesResponse)
+async def find_similar_companies(
+    request: SimilarCompaniesRequest,
+    admin: dict = Depends(verify_admin_token)
+):
+    """
+    Find similar companies based on input company IDs.
+    Uses weighted scoring algorithm across industry, revenue, employees, geography, and funding stage.
+    
+    Returns ranked list of similar companies with AI-generated reasoning.
+    Requires authentication.
+    """
+    session = get_session()
+    try:
+        # 1. Get input companies
+        input_companies = session.query(Company).filter(
+            Company.id.in_(request.company_ids)
+        ).all()
+        
+        if not input_companies:
+            raise HTTPException(status_code=404, detail="No companies found with provided IDs")
+        
+        # 2. Get all potential match candidates
+        query = session.query(Company).filter(
+            ~Company.id.in_(request.company_ids)  # Exclude input companies
+        )
+        
+        # Apply optional filters
+        if request.filters:
+            if 'country' in request.filters:
+                query = query.filter(Company.country == request.filters['country'])
+            if 'sector' in request.filters:
+                query = query.filter(Company.primary_industry_sector == request.filters['sector'])
+        
+        candidate_companies = query.all()
+        
+        # 3. Calculate similarity scores for all candidates against all input companies
+        all_matches = []
+        seen_company_ids = set()
+        
+        for input_company in input_companies:
+            for candidate in candidate_companies:
+                # Skip if already processed (when multiple input companies)
+                if candidate.id in seen_company_ids:
+                    continue
+                
+                similarity_score, matching_attrs = calculate_similarity_score(input_company, candidate)
+                
+                # Filter by minimum score
+                if similarity_score >= request.min_score:
+                    # Generate AI reasoning
+                    reasoning = generate_ai_reasoning(
+                        input_company, 
+                        candidate, 
+                        matching_attrs, 
+                        similarity_score
+                    )
+                    
+                    all_matches.append({
+                        'company': candidate,
+                        'score': similarity_score,
+                        'reasoning': reasoning,
+                        'matching_attributes': matching_attrs
+                    })
+                    
+                    seen_company_ids.add(candidate.id)
+        
+        # 4. Sort by similarity score (descending) and limit results
+        all_matches.sort(key=lambda x: x['score'], reverse=True)
+        top_matches = all_matches[:request.limit]
+        
+        # 5. Build response
+        from src.models.database_models_v2 import CompanyTag
+        
+        def build_company_response(company: Company) -> CompanyResponse:
+            """Helper to build CompanyResponse with all fields"""
+            # Get PE firms
+            pe_firms = [inv.pe_firm.name for inv in company.pe_investments if inv.pe_firm]
+            
+            # Get industry tags
+            industry_tags = session.query(CompanyTag.tag_value).filter(
+                CompanyTag.company_id == company.id,
+                CompanyTag.tag_category == 'industry'
+            ).all()
+            industries = [tag[0] for tag in industry_tags]
+            
+            # Build headquarters
+            hq = company.hq_location or company.headquarters
+            if not hq and company.city:
+                hq = f"{company.city}, {company.state_region or ''} {company.country or ''}".strip()
+            
+            return CompanyResponse(
+                id=company.id,
+                name=company.name,
+                former_name=company.former_name,
+                pe_firms=pe_firms,
+                status=company.status or "Active",
+                exit_type=company.exit_type,
+                investment_year=company.investment_year,
+                headquarters=hq,
+                website=company.website,
+                linkedin_url=company.linkedin_url,
+                crunchbase_url=company.crunchbase_url,
+                description=company.description,
+                revenue_range=decode_revenue_range(company.revenue_range) if company.revenue_range else None,
+                employee_count=get_employee_count_display(company),
+                crunchbase_employee_range=decode_employee_count(company.crunchbase_employee_count) if company.crunchbase_employee_count else None,
+                scraped_employee_count=company.projected_employee_count,
+                industry_category=company.primary_industry_group,
+                industries=industries,
+                total_funding_usd=company.total_funding_usd,
+                num_funding_rounds=company.num_funding_rounds,
+                latest_funding_type=company.latest_funding_type,
+                latest_funding_date=str(company.latest_funding_date) if company.latest_funding_date else None,
+                funding_stage_encoded=company.funding_stage_encoded,
+                avg_round_size_usd=company.avg_round_size_usd,
+                total_investors=company.total_investors,
+                predicted_revenue=company.predicted_revenue,
+                prediction_confidence=company.prediction_confidence,
+                is_public=company.is_public,
+                stock_exchange=company.stock_exchange,
+                investor_name=pe_firms[0] if pe_firms else None,
+                investor_status=company.status,
+                investor_holding=None,
+                current_revenue_usd=company.current_revenue_usd,
+                last_known_valuation_usd=company.last_known_valuation_usd,
+                primary_industry_group=company.primary_industry_group,
+                primary_industry_sector=company.primary_industry_sector,
+                hq_location=company.hq_location,
+                hq_country=company.hq_country,
+                last_financing_date=str(company.last_financing_date) if company.last_financing_date else None,
+                last_financing_size_usd=company.last_financing_size_usd,
+                last_financing_deal_type=company.last_financing_deal_type,
+                verticals=company.verticals
+            )
+        
+        # Build input companies response
+        input_company_responses = [build_company_response(c) for c in input_companies]
+        
+        # Build matches response
+        match_responses = [
+            SimilarCompanyMatch(
+                company=build_company_response(match['company']),
+                similarity_score=match['score'],
+                reasoning=match['reasoning'],
+                matching_attributes=match['matching_attributes']
+            )
+            for match in top_matches
+        ]
+        
+        return SimilarCompaniesResponse(
+            input_companies=input_company_responses,
+            matches=match_responses,
+            total_results=len(all_matches)
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error finding similar companies: {str(e)}")
+    finally:
+        session.close()
+
+
 @app.get("/")
 async def root():
     """API root endpoint"""
     return {
         "message": "PE Portfolio API V2",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "endpoints": {
             "companies": "/api/companies",
             "investments": "/api/investments",
             "pe_firms": "/api/pe-firms",
             "industries": "/api/industries",
-            "stats": "/api/stats"
+            "stats": "/api/stats",
+            "similar_companies": "POST /api/similar-companies (requires auth)"
         },
         "admin_endpoints": {
-            "update_company": "PUT /api/companies/{id} (requires X-Admin-Key header)",
-            "delete_company": "DELETE /api/companies/{id} (requires X-Admin-Key header)"
+            "update_company": "PUT /api/companies/{id} (requires auth)",
+            "delete_company": "DELETE /api/companies/{id} (requires auth)",
+            "merge_companies": "POST /api/companies/merge (requires auth)"
         }
     }
 
