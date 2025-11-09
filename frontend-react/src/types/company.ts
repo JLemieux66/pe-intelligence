@@ -70,6 +70,7 @@ export interface Company {
   // Public company data
   is_public?: boolean
   stock_exchange?: string
+  ipo_ticker?: string
   // PitchBook enrichment data
   investor_name?: string  // PE firm name from PitchBook
   investor_status?: string  // Active, Former, etc.
