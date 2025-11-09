@@ -75,34 +75,163 @@ class SimilarCompaniesService(BaseService):
             if 'sector' in request.filters:
                 query = query.filter(Company.primary_industry_sector == request.filters['sector'])
         
-        # Limit candidates for performance (top 2000 by revenue/valuation)
+        # Get all candidates first for advanced filtering
         candidates = query.order_by(
             desc(Company.current_revenue_usd),
             desc(Company.last_known_valuation_usd)
-        ).limit(2000).all()
+        ).all()
+        
+        print(f"   Found {len(candidates)} candidate companies (before exit filter)")
+        
+        # EXCLUDE ALL EXITED COMPANIES EXCEPT IPO - Never show acquired, merged, LBO, buyout, etc.
+        def has_non_ipo_exit(company):
+            """Check if company has any non-IPO exits in its investments"""
+            for inv in company.investments:
+                # Check computed_status - if it's "Exit", verify it was an IPO
+                computed_status = getattr(inv, 'computed_status', None)
+                investor_status = getattr(inv, 'investor_status', None)
+                
+                # If investor is "Former", check the exit type
+                if investor_status and 'former' in investor_status.lower():
+                    exit_type = getattr(inv, 'exit_type', None)
+                    
+                    # Former investor with no exit_type or non-IPO exit = exclude
+                    if not exit_type or exit_type.strip() == '':
+                        print(f"   [FILTER] Excluding {company.name} - Former investor with no exit_type")
+                        return True
+                    
+                    exit_lower = exit_type.lower().strip()
+                    if exit_lower != 'ipo':
+                        print(f"   [FILTER] Excluding {company.name} - Former investor, exit_type: {exit_type}")
+                        return True
+                
+                # Also check computed_status = Exit
+                if computed_status and 'exit' in computed_status.lower():
+                    exit_type = getattr(inv, 'exit_type', None)
+                    
+                    # If status is Exit but no exit_type specified, exclude it (safer default)
+                    if not exit_type or exit_type.strip() == '':
+                        print(f"   [FILTER] Excluding {company.name} - Exit status with no exit_type specified")
+                        return True
+                    
+                    exit_lower = exit_type.lower().strip()
+                    
+                    # Only allow IPO exits
+                    if exit_lower != 'ipo':
+                        # Check for common non-IPO exit patterns
+                        non_ipo_keywords = ['acquisition', 'acquired', 'buyout', 'lbo', 'secondary', 
+                                           'merger', 'merge', 'private equity', 'going private', 
+                                           'management buyout', 'mbo', 'sale', 'sold']
+                        
+                        # Either matches a keyword OR is an exit that's not IPO
+                        is_non_ipo = any(keyword in exit_lower for keyword in non_ipo_keywords)
+                        if is_non_ipo or exit_lower not in ['none', 'null', 'unknown']:
+                            print(f"   [FILTER] Excluding {company.name} - exit_type: {exit_type}")
+                            return True
+            return False
+        
+        candidates = [c for c in candidates if not has_non_ipo_exit(c)]
+        print(f"   Filtered to {len(candidates)} companies (excluding non-IPO exits)")
+        
+        # USER FEEDBACK FILTERING: Exclude companies marked as "not a match"
+        from src.models.database_models_v2 import CompanySimilarityFeedback
+        
+        # Get all negative feedback for input companies
+        negative_feedback_query = self.session.query(CompanySimilarityFeedback).filter(
+            CompanySimilarityFeedback.input_company_id.in_([c.id for c in input_companies]),
+            CompanySimilarityFeedback.feedback_type == 'not_a_match'
+        )
+        
+        excluded_company_ids = set()
+        for feedback in negative_feedback_query.all():
+            excluded_company_ids.add(feedback.match_company_id)
+        
+        if excluded_company_ids:
+            before_feedback_filter = len(candidates)
+            candidates = [c for c in candidates if c.id not in excluded_company_ids]
+            print(f"   Feedback filter: Excluded {before_feedback_filter - len(candidates)} companies marked as 'not a match'")
+        
+        # REVENUE-BASED PRE-FILTERING: Only compare companies in reasonable revenue range
+        # This dramatically improves result quality and speed
+        if input_companies[0].current_revenue_usd:
+            input_revenue = input_companies[0].current_revenue_usd
+            # Keep companies within 0.2x to 5x revenue range (covers 25x total range)
+            min_revenue = input_revenue * 0.2
+            max_revenue = input_revenue * 5.0
+            
+            before_revenue_filter = len(candidates)
+            candidates = [
+                c for c in candidates 
+                if c.current_revenue_usd and min_revenue <= c.current_revenue_usd <= max_revenue
+            ]
+            print(f"   Revenue filter: ${input_revenue:.1f}M ±80% to 5x = {len(candidates)} companies (was {before_revenue_filter})")
+        
+        # AGGRESSIVE FILTERING: Limit to max 100 candidates to prevent timeout
+        max_candidates = 100
+        
+        if len(candidates) > max_candidates:
+            print(f"   WARNING: Too many candidates ({len(candidates)}), applying aggressive filtering...")
+            
+            # Strategy 1: Filter by same sector first
+            if input_companies[0].primary_industry_sector:
+                same_sector = [c for c in candidates 
+                             if c.primary_industry_sector == input_companies[0].primary_industry_sector]
+                
+                if len(same_sector) >= 20:
+                    # Take top N from same sector
+                    candidates = same_sector[:max_candidates]
+                    print(f"   Filtered to {len(candidates)} companies in same sector")
+                else:
+                    # Mix same sector + others
+                    other_companies = [c for c in candidates 
+                                     if c.primary_industry_sector != input_companies[0].primary_industry_sector]
+                    candidates = same_sector + other_companies[:max_candidates - len(same_sector)]
+                    print(f"   Mixed filter: {len(same_sector)} same sector + {len(candidates) - len(same_sector)} others")
+            else:
+                # No sector info, just take first N
+                candidates = candidates[:max_candidates]
+                print(f"   Limited to first {len(candidates)} companies")
         
         print(f"   Found {len(candidates)} candidate companies")
         
         # 3. Calculate similarity scores for all candidates against all input companies
         print("[3/6] Calculating similarity scores...")
         all_matches = []
+        seen_company_ids = set()
         
-        for input_company in input_companies:
-            print(f"   Processing {input_company.name}...")
+        total_comparisons = len(input_companies) * len(candidates)
+        print(f"   Total comparisons to make: {total_comparisons}")
+        
+        comparison_count = 0
+        for idx, input_company in enumerate(input_companies):
+            print(f"   Processing input company {idx+1}/{len(input_companies)}: {input_company.name}")
             
             for candidate in candidates:
+                comparison_count += 1
+                if comparison_count % 50 == 0:
+                    print(f"   Progress: {comparison_count}/{total_comparisons} comparisons...")
+                
+                # Skip if already processed (when multiple input companies)
+                if candidate.id in seen_company_ids:
+                    continue
+                
                 # Calculate rule-based similarity score with detailed breakdown
                 similarity_score, matching_attrs, score_breakdown, confidence, categories_with_score = self.calculate_similarity_score(input_company, candidate)
                 
                 # Skip semantic similarity (OpenAI embeddings) for performance
                 # semantic_score, semantic_explanation = self.calculate_semantic_similarity(input_company, candidate)
                 
+                # Multi-requirement filter: require scores in at least 2 categories
+                # This prevents weak matches that only score high in one dimension
+                if categories_with_score < 2:
+                    continue
+                
                 # Total score (cap at 100)
                 total_score = similarity_score  # + semantic_score
                 
                 if total_score >= request.min_score:
-                    # Generate AI reasoning
-                    reasoning = self.generate_ai_reasoning(input_company, candidate, matching_attrs, total_score)
+                    # Generate rule-based reasoning (no AI/API calls)
+                    reasoning = self.generate_rule_based_reasoning(input_company, candidate, matching_attrs, total_score)
                     
                     all_matches.append({
                         'input_company_id': input_company.id,
@@ -113,6 +242,10 @@ class SimilarCompaniesService(BaseService):
                         'score_breakdown': score_breakdown,
                         'confidence': confidence
                     })
+                    
+                    seen_company_ids.add(candidate.id)
+        
+        print(f"   Found {len(all_matches)} matches above threshold")
         
         # 4. Sort by similarity score (descending) and limit results
         print("[4/6] Sorting and filtering results...")
@@ -440,6 +573,57 @@ class SimilarCompaniesService(BaseService):
         """
         return 0.0, "Semantic similarity disabled for performance"
     
+    def generate_rule_based_reasoning(self, company_a: Company, company_b: Company, matching_attributes: List[str], similarity_score: float) -> str:
+        """Generate rule-based reasoning without AI/API calls for better performance"""
+        if not matching_attributes:
+            return f"Limited similarity to {company_a.name} (score: {similarity_score:.1f}%)"
+        
+        # Categorize the matching attributes
+        revenue_matches = [attr for attr in matching_attributes if 'revenue' in attr.lower()]
+        industry_matches = [attr for attr in matching_attributes if any(word in attr.lower() for word in ['industry', 'sector', 'vertical'])]
+        size_matches = [attr for attr in matching_attributes if 'employee' in attr.lower()]
+        geo_matches = [attr for attr in matching_attributes if any(word in attr.lower() for word in ['country', 'state', 'city', 'region'])]
+        funding_matches = [attr for attr in matching_attributes if any(word in attr.lower() for word in ['funding', 'stage', 'public', 'private'])]
+        
+        reasoning_parts = []
+        
+        # Start with overall assessment
+        if similarity_score >= 70:
+            reasoning_parts.append(f"Strong match with {company_a.name} ({similarity_score:.1f}% similarity).")
+        elif similarity_score >= 50:
+            reasoning_parts.append(f"Good match with {company_a.name} ({similarity_score:.1f}% similarity).")
+        elif similarity_score >= 30:
+            reasoning_parts.append(f"Moderate match with {company_a.name} ({similarity_score:.1f}% similarity).")
+        else:
+            reasoning_parts.append(f"Limited match with {company_a.name} ({similarity_score:.1f}% similarity).")
+        
+        # Add specific matching details
+        if revenue_matches:
+            reasoning_parts.append(f"Revenue alignment: {revenue_matches[0]}.")
+        
+        if industry_matches:
+            reasoning_parts.append(f"Industry similarity: {industry_matches[0]}.")
+        
+        if size_matches:
+            reasoning_parts.append(f"Company size: {size_matches[0]}.")
+        
+        if geo_matches:
+            reasoning_parts.append(f"Geographic proximity: {geo_matches[0]}.")
+        
+        if funding_matches:
+            reasoning_parts.append(f"Funding characteristics: {funding_matches[0]}.")
+        
+        # Add context about comparison quality
+        total_matches = len(matching_attributes)
+        if total_matches >= 4:
+            reasoning_parts.append("Multiple strong alignment factors.")
+        elif total_matches >= 2:
+            reasoning_parts.append("Several alignment factors.")
+        else:
+            reasoning_parts.append("Limited alignment factors.")
+        
+        return " ".join(reasoning_parts)
+
     def generate_ai_reasoning(self, company_a: Company, company_b: Company, matching_attributes: List[str], similarity_score: float) -> str:
         """
         Generate enhanced AI-powered reasoning for why two companies are similar.

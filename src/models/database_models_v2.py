@@ -297,6 +297,34 @@ class FundingRound(Base):
         return f"<FundingRound(company_id={self.company_id}, type='{self.investment_type}', amount=${self.money_raised_usd})>"
 
 
+class CompanySimilarityFeedback(Base):
+    """User feedback on similar company matches"""
+    
+    __tablename__ = "company_similarity_feedback"
+    
+    id = Column(Integer, primary_key=True)
+    input_company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    match_company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    feedback_type = Column(String(50), nullable=False)  # 'not_a_match', 'good_match', etc.
+    user_email = Column(String(100))  # Optional user identifier
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    input_company = relationship("Company", foreign_keys=[input_company_id])
+    match_company = relationship("Company", foreign_keys=[match_company_id])
+    
+    # Indexes for performance
+    __table_args__ = (
+        Index("idx_input_match", "input_company_id", "match_company_id"),
+        Index("idx_feedback_type", "feedback_type"),
+        Index("idx_created_at", "created_at"),
+        UniqueConstraint("input_company_id", "match_company_id", "user_email", name="unique_feedback_per_user"),
+    )
+    
+    def __repr__(self):
+        return f"<CompanySimilarityFeedback(input={self.input_company_id}, match={self.match_company_id}, type='{self.feedback_type}')>"
+
+
 # Database connection functions
 def get_database_url():
     """Get database URL from environment or use default."""

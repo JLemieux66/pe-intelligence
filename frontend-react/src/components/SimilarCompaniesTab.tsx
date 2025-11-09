@@ -166,6 +166,27 @@ function SimilarCompanyCard({ match, rank, inputCompanyId, onCompanyClick }: Sim
     }
   }
 
+  const handleGoodMatch = async () => {
+    setIsSubmittingFeedback(true)
+    try {
+      await submitSimilarityFeedback({
+        input_company_id: inputCompanyId,
+        match_company_id: company.id,
+        feedback_type: 'good_match'
+      })
+      setFeedbackSubmitted(true)
+      setTimeout(() => {
+        // In a production app, you might want to refetch similar companies here
+        // or update the UI to show this was marked as a good match
+      }, 1000)
+    } catch (error) {
+      console.error('Failed to submit feedback:', error)
+      alert('Failed to submit feedback. Please try again.')
+    } finally {
+      setIsSubmittingFeedback(false)
+    }
+  }
+
   // Determine score color
   const getScoreColor = (score: number) => {
     if (score >= 70) return 'from-green-600 to-emerald-600'
@@ -556,15 +577,28 @@ function SimilarCompanyCard({ match, rank, inputCompanyId, onCompanyClick }: Sim
               Feedback Sent
             </div>
           ) : (
-            <button
-              onClick={handleNotAMatch}
-              disabled={isSubmittingFeedback}
-              className="px-4 py-2 bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-700 text-sm font-semibold rounded-lg transition-colors shadow-sm flex items-center gap-2 border border-gray-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Mark as not a match to improve future results"
-            >
-              <X className="w-4 h-4" />
-              {isSubmittingFeedback ? 'Submitting...' : 'Not a Match'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleGoodMatch}
+                disabled={isSubmittingFeedback}
+                className="px-3 py-2 bg-green-50 hover:bg-green-100 text-green-700 hover:text-green-800 text-sm font-semibold rounded-lg transition-colors shadow-sm flex items-center gap-2 border border-green-200 hover:border-green-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Mark as a good match to improve future results"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                </svg>
+                {isSubmittingFeedback ? 'Submitting...' : 'Good Match'}
+              </button>
+              <button
+                onClick={handleNotAMatch}
+                disabled={isSubmittingFeedback}
+                className="px-3 py-2 bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-700 text-sm font-semibold rounded-lg transition-colors shadow-sm flex items-center gap-2 border border-gray-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Mark as not a match to improve future results"
+              >
+                <X className="w-4 h-4" />
+                {isSubmittingFeedback ? 'Submitting...' : 'Not a Match'}
+              </button>
+            </div>
           )}
         </div>
       </div>

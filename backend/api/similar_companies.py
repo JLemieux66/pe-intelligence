@@ -67,17 +67,44 @@ async def submit_similarity_feedback(
     }
     """
     try:
-        # For now, just log the feedback
-        # In the future, this could be stored in a database for algorithm improvement
-        print(f"Similarity feedback received from {admin.get('email', 'unknown')}:")
-        print(f"  Input company: {feedback_data.get('input_company_id')}")
-        print(f"  Match company: {feedback_data.get('match_company_id')}")
-        print(f"  Feedback: {feedback_data.get('feedback_type')}")
-        print(f"  Notes: {feedback_data.get('notes', 'None')}")
+        from src.models.database_models_v2 import CompanySimilarityFeedback
+        
+        # Validate required fields
+        input_company_id = feedback_data.get('input_company_id')
+        match_company_id = feedback_data.get('match_company_id')
+        feedback_type = feedback_data.get('feedback_type')
+        
+        if not all([input_company_id, match_company_id, feedback_type]):
+            raise HTTPException(status_code=400, detail="Missing required fields: input_company_id, match_company_id, feedback_type")
+        
+        # Check if feedback already exists for this user
+        user_email = admin.get('email', 'unknown')
+        existing_feedback = session.query(CompanySimilarityFeedback).filter(
+            CompanySimilarityFeedback.input_company_id == input_company_id,
+            CompanySimilarityFeedback.match_company_id == match_company_id,
+            CompanySimilarityFeedback.user_email == user_email
+        ).first()
+        
+        if existing_feedback:
+            # Update existing feedback
+            existing_feedback.feedback_type = feedback_type
+            print(f"Updated similarity feedback from {user_email}: {input_company_id} -> {match_company_id} = {feedback_type}")
+        else:
+            # Create new feedback
+            new_feedback = CompanySimilarityFeedback(
+                input_company_id=input_company_id,
+                match_company_id=match_company_id,
+                feedback_type=feedback_type,
+                user_email=user_email
+            )
+            session.add(new_feedback)
+            print(f"New similarity feedback from {user_email}: {input_company_id} -> {match_company_id} = {feedback_type}")
+        
+        session.commit()
         
         return {
             "status": "success",
-            "message": "Feedback received and logged"
+            "message": "Feedback saved successfully"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error submitting feedback: {str(e)}")
