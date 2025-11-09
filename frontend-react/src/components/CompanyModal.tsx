@@ -3,10 +3,12 @@ import { fetchCompanyById, fetchCompanyFundingRounds } from '../api/client'
 import { useState } from 'react'
 import CompanyEditModal from './CompanyEditModal'
 import FundingTimeline from './FundingTimeline'
+import SimilarCompaniesTab from './SimilarCompaniesTab'
 
 interface CompanyModalProps {
   companyId: number
   onClose: () => void
+  onNavigateToCompany?: (companyId: number) => void
 }
 
 // Check if admin is logged in
@@ -51,11 +53,11 @@ const getInitials = (name: string): string => {
     .slice(0, 2)
 }
 
-export default function CompanyModal({ companyId, onClose }: CompanyModalProps) {
+export default function CompanyModal({ companyId, onClose, onNavigateToCompany }: CompanyModalProps) {
   const [logoError, setLogoError] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [fundingView, setFundingView] = useState<'timeline' | 'list'>('timeline')
-  const [activeTab, setActiveTab] = useState<'overview' | 'funding' | 'pitchbook'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'funding' | 'pitchbook' | 'similar'>('overview')
   
   const { data: company, isLoading, error } = useQuery({
     queryKey: ['company', companyId],
@@ -277,7 +279,7 @@ export default function CompanyModal({ companyId, onClose }: CompanyModalProps) 
                 </div>
               </button>
               
-              {(company.current_revenue_usd || company.last_known_valuation_usd || company.investor_name || 
+              {(company.current_revenue_usd || company.last_known_valuation_usd || company.investor_name ||
                 company.primary_industry_group || company.last_financing_size_usd) && (
                 <button
                   onClick={() => setActiveTab('pitchbook')}
@@ -298,6 +300,22 @@ export default function CompanyModal({ companyId, onClose }: CompanyModalProps) 
                   </div>
                 </button>
               )}
+
+              <button
+                onClick={() => setActiveTab('similar')}
+                className={`px-6 py-3 text-sm font-semibold transition-all relative ${
+                  activeTab === 'similar'
+                    ? 'text-purple-600 border-b-2 border-purple-600'
+                    : 'text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Similar Companies
+                </div>
+              </button>
             </nav>
           </div>
 
@@ -822,6 +840,17 @@ export default function CompanyModal({ companyId, onClose }: CompanyModalProps) 
               </dl>
             </div>
           )}
+            </div>
+          )}
+
+          {/* Similar Companies Tab */}
+          {activeTab === 'similar' && (
+            <div className="space-y-6">
+              <SimilarCompaniesTab companyId={companyId} onCompanyClick={(id) => {
+                if (onNavigateToCompany) {
+                  onNavigateToCompany(id);
+                }
+              }} />
             </div>
           )}
         </div>

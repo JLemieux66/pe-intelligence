@@ -72,3 +72,110 @@ export const fetchPitchBookMetadata = async (): Promise<{
   }
   return await response.json()
 }
+
+export interface SimilarCompanyMatch {
+  company: Company
+  similarity_score: number
+  reasoning: string
+  matching_attributes: string[]
+  score_breakdown?: {
+    [category: string]: {
+      score: number
+      max_score: number
+      available: boolean
+      input_value?: string | number | null
+      match_value?: string | number | null
+      input_label?: string
+      match_label?: string
+    }
+  }
+  confidence?: number
+}
+
+export interface SimilarCompaniesResponse {
+  input_companies: Company[]
+  matches: SimilarCompanyMatch[]
+  total_results: number
+}
+
+export const fetchSimilarCompanies = async (
+  companyIds: number[],
+  minScore: number = 30,
+  limit: number = 10
+): Promise<SimilarCompaniesResponse> => {
+  const token = localStorage.getItem('admin_token')
+  
+  console.log('[fetchSimilarCompanies] Starting request', {
+    companyIds,
+    minScore,
+    limit,
+    hasToken: !!token,
+    tokenPreview: token ? `${token.substring(0, 20)}...` : 'none',
+    apiUrl: `${API_BASE_URL}/similar-companies`
+  })
+
+  try {
+    console.log('[fetchSimilarCompanies] Making POST request...')
+    
+    const response = await api.post<SimilarCompaniesResponse>(
+      '/similar-companies',
+      {
+        company_ids: companyIds,
+        min_score: minScore,
+        limit: limit,
+      },
+      {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+        timeout: 60000, // 60 second timeout (increased from 30s)
+      }
+    )
+    
+    console.log('[fetchSimilarCompanies] Response received', response.data)
+    
+    return response.data
+  } catch (error: any) {
+    console.error('[fetchSimilarCompanies] Error details:', {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      isTimeout: error.code === 'ECONNABORTED'
+    })
+    throw error
+  }
+}
+
+export interface SimilarityFeedbackRequest {
+  input_company_id: number
+  match_company_id: number
+  feedback_type: 'not_a_match' | 'good_match'
+}
+
+export const submitSimilarityFeedback = async (
+  request: SimilarityFeedbackRequest
+): Promise<{ success: boolean; message: string }> => {
+  const token = localStorage.getItem('admin_token')
+  
+  console.log('[submitSimilarityFeedback] Submitting feedback', request)
+
+  try {
+    const response = await api.post(
+      '/similar-companies/feedback',
+      request,
+      {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      }
+    )
+    
+    console.log('[submitSimilarityFeedback] Success', response.data)
+    return response.data
+  } catch (error: any) {
+    console.error('[submitSimilarityFeedback] Error:', error.response?.data || error.message)
+    throw error
+  }
+}

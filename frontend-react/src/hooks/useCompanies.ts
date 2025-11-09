@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchStats, fetchPEFirms, fetchCompanies, fetchIndustries, fetchLocations, fetchPitchBookMetadata } from '../api/client'
+import { fetchStats, fetchPEFirms, fetchCompanies, fetchIndustries, fetchLocations, fetchPitchBookMetadata, fetchSimilarCompanies } from '../api/client'
 import type { CompanyFilters } from '../types/company'
 
 export const useStats = () => {
@@ -47,4 +47,26 @@ export const usePitchBookMetadata = () => {
     queryFn: fetchPitchBookMetadata,
     staleTime: 10 * 60 * 1000, // 10 minutes
   })
+}
+
+export const useSimilarCompanies = (companyIds: number[], minScore: number = 30, limit: number = 10) => {
+  const result = useQuery({
+    queryKey: ['similar-companies', companyIds, minScore, limit],
+    queryFn: () => {
+      console.log('[useSimilarCompanies] Query function called', { companyIds, minScore, limit })
+      return fetchSimilarCompanies(companyIds, minScore, limit)
+    },
+    enabled: companyIds.length > 0, // Only fetch if we have company IDs
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: false, // Don't retry on error for debugging
+  })
+  
+  console.log('[useSimilarCompanies] Query result:', {
+    isLoading: result.isLoading,
+    isError: result.isError,
+    error: result.error,
+    data: result.data
+  })
+  
+  return result
 }
