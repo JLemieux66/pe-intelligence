@@ -13,6 +13,7 @@ from backend.api.pe_firms import router as pe_firms_router
 from backend.api.metadata import router as metadata_router
 from backend.api.investments import router as investments_router
 from backend.api.companies import router as companies_router
+from backend.api.similar_companies import router as similar_companies_router
 
 # Initialize FastAPI
 app = FastAPI(
@@ -79,6 +80,7 @@ app.include_router(pe_firms_router)
 app.include_router(metadata_router)
 app.include_router(investments_router)
 app.include_router(companies_router)
+app.include_router(similar_companies_router)
 
 
 if __name__ == "__main__":
