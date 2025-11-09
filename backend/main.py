@@ -25,7 +25,7 @@ app = FastAPI(
 # Get allowed origins from environment variable or use defaults
 allowed_origins = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://localhost:3000"
+    "http://localhost:5173,http://localhost:3000,https://pe-intelligence.vercel.app"
 ).split(",")
 
 app.add_middleware(
