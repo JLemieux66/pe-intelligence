@@ -312,14 +312,23 @@ def create_database_engine():
     database_url = get_database_url()
     
     # Configure connection pooling for production reliability
-    engine = create_engine(
-        database_url,
-        echo=False,
-        pool_size=10,           # Maximum number of permanent connections
-        max_overflow=20,        # Maximum number of temporary connections
-        pool_pre_ping=True,     # Verify connections are alive before using
-        pool_recycle=3600,      # Recycle connections after 1 hour
-    )
+    # SQLite doesn't support connection pooling parameters
+    if database_url.startswith("sqlite"):
+        engine = create_engine(
+            database_url,
+            echo=False,
+            pool_pre_ping=True,     # Verify connections are alive before using
+        )
+    else:
+        # PostgreSQL and other databases support full connection pooling
+        engine = create_engine(
+            database_url,
+            echo=False,
+            pool_size=10,           # Maximum number of permanent connections
+            max_overflow=20,        # Maximum number of temporary connections
+            pool_pre_ping=True,     # Verify connections are alive before using
+            pool_recycle=3600,      # Recycle connections after 1 hour
+        )
     return engine
 
 
@@ -332,7 +341,18 @@ def init_database():
 
 
 def get_session():
-    """Get database session"""
+    """Get database session for FastAPI dependency injection"""
+    engine = create_database_engine()
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def get_direct_session():
+    """Get database session for direct use (not dependency injection)"""
     engine = create_database_engine()
     Session = sessionmaker(bind=engine)
     return Session()
