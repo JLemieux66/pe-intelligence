@@ -162,7 +162,7 @@ class CompanyService(BaseService):
             total_funding_usd=company.total_funding_usd,
             num_funding_rounds=company.num_funding_rounds,
             latest_funding_type=company.latest_funding_type,
-            latest_funding_date=company.latest_funding_date,
+            latest_funding_date=company.latest_funding_date.isoformat() if company.latest_funding_date else None,
             funding_stage_encoded=company.funding_stage_encoded,
             avg_round_size_usd=company.avg_round_size_usd,
             total_investors=company.total_investors,
@@ -179,7 +179,7 @@ class CompanyService(BaseService):
             primary_industry_sector=getattr(company, 'primary_industry_sector', None),
             hq_location=getattr(company, 'hq_location', None),
             hq_country=getattr(company, 'hq_country', None),
-            last_financing_date=getattr(company, 'last_financing_date', None),
+            last_financing_date=getattr(company, 'last_financing_date', None).isoformat() if getattr(company, 'last_financing_date', None) else None,
             last_financing_size_usd=float(company.last_financing_size_usd) if getattr(company, 'last_financing_size_usd', None) else None,
             last_financing_deal_type=getattr(company, 'last_financing_deal_type', None),
             verticals=getattr(company, 'verticals', None)
