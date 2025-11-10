@@ -71,39 +71,6 @@ def get_companies(
         return companies
 
 
-@router.get("/companies/{company_id}", response_model=CompanyResponse)
-def get_company(company_id: int, session = Depends(get_session)):
-    """Get a single company by ID"""
-    
-    with CompanyService(session) as company_service:
-        company = company_service.get_company_by_id(company_id)
-        if not company:
-            raise HTTPException(status_code=404, detail="Company not found")
-        return company
-
-
-@router.put("/companies/{company_id}", dependencies=[Depends(verify_admin_token)])
-async def update_company(company_id: int, company_update: CompanyUpdate, session = Depends(get_session)):
-    """Update company details (Admin only)"""
-    
-    with CompanyService(session) as company_service:
-        success = company_service.update_company(company_id, company_update)
-        if not success:
-            raise HTTPException(status_code=404, detail="Company not found")
-        return {"message": "Company updated successfully"}
-
-
-@router.delete("/companies/{company_id}", dependencies=[Depends(verify_admin_token)])
-async def delete_company(company_id: int):
-    """Delete a company (Admin only)"""
-
-    with CompanyService() as company_service:
-        success = company_service.delete_company(company_id)
-        if not success:
-            raise HTTPException(status_code=404, detail="Company not found")
-        return {"message": "Company deleted successfully"}
-
-
 @router.get("/companies/export/with-revenue")
 def export_companies_with_revenue(
     response: Response,
@@ -284,3 +251,36 @@ def export_companies_with_revenue(
                 "X-Total-Count": str(total_count)
             }
         )
+
+
+@router.get("/companies/{company_id}", response_model=CompanyResponse)
+def get_company(company_id: int, session = Depends(get_session)):
+    """Get a single company by ID"""
+    
+    with CompanyService(session) as company_service:
+        company = company_service.get_company_by_id(company_id)
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        return company
+
+
+@router.put("/companies/{company_id}", dependencies=[Depends(verify_admin_token)])
+async def update_company(company_id: int, company_update: CompanyUpdate, session = Depends(get_session)):
+    """Update company details (Admin only)"""
+    
+    with CompanyService(session) as company_service:
+        success = company_service.update_company(company_id, company_update)
+        if not success:
+            raise HTTPException(status_code=404, detail="Company not found")
+        return {"message": "Company updated successfully"}
+
+
+@router.delete("/companies/{company_id}", dependencies=[Depends(verify_admin_token)])
+async def delete_company(company_id: int):
+    """Delete a company (Admin only)"""
+
+    with CompanyService() as company_service:
+        success = company_service.delete_company(company_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Company not found")
+        return {"message": "Company deleted successfully"}
