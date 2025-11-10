@@ -109,6 +109,19 @@ with open('qa_report.json') as f:
           " >> $GITHUB_STEP_SUMMARY
         fi
 
+    - name: Send QA Report Email
+      if: always() && github.ref == 'refs/heads/main'
+      env:
+        EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      run: |
+        if [ -n "${{ secrets.QA_EMAIL_RECIPIENT }}" ]; then
+          echo "📧 Sending QA report email..."
+          python3 backend/services/qa_service.py --email ${{ secrets.QA_EMAIL_RECIPIENT }}
+        else
+          echo "ℹ️  QA_EMAIL_RECIPIENT not configured, skipping email"
+        fi
+
   security:
     name: Security Scanning
     runs-on: ubuntu-latest

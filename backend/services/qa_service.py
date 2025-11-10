@@ -6,10 +6,17 @@ import ast
 import os
 import re
 import subprocess
+import smtplib
+import json
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Set, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+from datetime import datetime
 
 
 class TestType(Enum):
@@ -554,6 +561,307 @@ class QAService:
 
         print("\n" + "="*70)
 
+    def send_email_report(
+        self,
+        report: Dict[str, Any],
+        to_email: str,
+        from_email: Optional[str] = None,
+        subject_prefix: str = "🧪 QA Report"
+    ) -> bool:
+        """
+        Send QA report via email with HTML formatting and JSON attachment
+
+        Args:
+            report: QA report dictionary from run_qa_report()
+            to_email: Recipient email address
+            from_email: Sender email (defaults to env var or noreply)
+            subject_prefix: Custom subject prefix
+
+        Returns:
+            True if email sent successfully, False otherwise
+
+        Environment Variables Required:
+            SMTP_SERVER: SMTP server address (default: smtp.gmail.com)
+            SMTP_PORT: SMTP server port (default: 587)
+            EMAIL_USERNAME: SMTP username
+            EMAIL_PASSWORD: SMTP password (use App Password for Gmail)
+        """
+        try:
+            # Get email configuration from environment
+            smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+            smtp_port = int(os.getenv('SMTP_PORT', '587'))
+            username = os.getenv('EMAIL_USERNAME')
+            password = os.getenv('EMAIL_PASSWORD')
+
+            if not username or not password:
+                print("❌ Error: EMAIL_USERNAME and EMAIL_PASSWORD environment variables required")
+                return False
+
+            if not from_email:
+                from_email = os.getenv('EMAIL_FROM', f'{username}')
+
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['From'] = from_email
+            msg['To'] = to_email
+            msg['Subject'] = f"{subject_prefix} - Score: {report['quality_score']}/100 - {datetime.now().strftime('%Y-%m-%d')}"
+
+            # Generate HTML body
+            html_body = self._generate_email_html(report)
+            msg.attach(MIMEText(html_body, 'html'))
+
+            # Attach JSON report
+            json_data = json.dumps(report, indent=2)
+            attachment = MIMEBase('application', 'json')
+            attachment.set_payload(json_data.encode('utf-8'))
+            encoders.encode_base64(attachment)
+            attachment.add_header(
+                'Content-Disposition',
+                f'attachment; filename=qa_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+            )
+            msg.attach(attachment)
+
+            # Send email
+            print(f"📧 Sending QA report to {to_email}...")
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(username, password)
+            server.send_message(msg)
+            server.quit()
+
+            print(f"✅ Email sent successfully to {to_email}")
+            return True
+
+        except smtplib.SMTPAuthenticationError:
+            print("❌ SMTP Authentication failed. Check EMAIL_USERNAME and EMAIL_PASSWORD")
+            return False
+        except smtplib.SMTPException as e:
+            print(f"❌ SMTP error: {e}")
+            return False
+        except Exception as e:
+            print(f"❌ Failed to send email: {e}")
+            return False
+
+    def _generate_email_html(self, report: Dict[str, Any]) -> str:
+        """Generate HTML email body from QA report"""
+
+        # Determine quality score color
+        score = report['quality_score']
+        if score >= 80:
+            score_color = '#28a745'  # Green
+            score_status = 'Excellent'
+        elif score >= 70:
+            score_color = '#ffc107'  # Yellow
+            score_status = 'Good'
+        elif score >= 60:
+            score_color = '#fd7e14'  # Orange
+            score_status = 'Fair'
+        else:
+            score_color = '#dc3545'  # Red
+            score_status = 'Needs Improvement'
+
+        # Determine coverage color
+        coverage = report['coverage']['percentage']
+        if coverage >= 80:
+            cov_color = '#28a745'
+        elif coverage >= 60:
+            cov_color = '#ffc107'
+        else:
+            cov_color = '#dc3545'
+
+        # Build coverage gaps summary
+        gaps_html = ""
+        if report.get('coverage_gaps'):
+            gaps_html = "<h3 style='color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;'>📋 Sample Coverage Gaps</h3>"
+            gaps_html += "<ul style='list-style-type: none; padding-left: 0;'>"
+
+            for gap in report['coverage_gaps'][:10]:  # Show first 10
+                severity_emoji = {
+                    'critical': '🔴',
+                    'high': '🟠',
+                    'medium': '🟡',
+                    'low': '🟢'
+                }.get(gap['severity'], '⚪')
+
+                gaps_html += f"""
+                <li style='margin: 10px 0; padding: 10px; background-color: #f8f9fa; border-left: 3px solid #6c757d;'>
+                    {severity_emoji} <strong>{gap['name']}</strong> in <code>{Path(gap['file']).name}</code>
+                    <br><small style='color: #6c757d;'>{gap['reason']}</small>
+                </li>
+                """
+            gaps_html += "</ul>"
+
+        # Build missing files list
+        missing_files_html = ""
+        if report.get('missing_test_files'):
+            missing_files_html = "<h3 style='color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;'>📝 Files Missing Tests</h3>"
+            missing_files_html += "<ul>"
+            for file_path in report['missing_test_files'][:10]:
+                missing_files_html += f"<li><code>{Path(file_path).name}</code></li>"
+
+            remaining = len(report['missing_test_files']) - 10
+            if remaining > 0:
+                missing_files_html += f"<li><em>... and {remaining} more</em></li>"
+            missing_files_html += "</ul>"
+
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f8f9fa;
+                }}
+                .container {{
+                    background-color: white;
+                    border-radius: 8px;
+                    padding: 30px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }}
+                .header {{
+                    text-align: center;
+                    padding-bottom: 20px;
+                    border-bottom: 3px solid #007bff;
+                    margin-bottom: 30px;
+                }}
+                .score-badge {{
+                    display: inline-block;
+                    font-size: 48px;
+                    font-weight: bold;
+                    color: {score_color};
+                    margin: 10px 0;
+                }}
+                .status-badge {{
+                    display: inline-block;
+                    padding: 5px 15px;
+                    border-radius: 20px;
+                    background-color: {score_color};
+                    color: white;
+                    font-size: 14px;
+                    font-weight: bold;
+                }}
+                .metrics-grid {{
+                    display: table;
+                    width: 100%;
+                    margin: 20px 0;
+                }}
+                .metric-row {{
+                    display: table-row;
+                }}
+                .metric-row:nth-child(even) {{
+                    background-color: #f8f9fa;
+                }}
+                .metric-label {{
+                    display: table-cell;
+                    padding: 12px;
+                    font-weight: 600;
+                    border: 1px solid #dee2e6;
+                }}
+                .metric-value {{
+                    display: table-cell;
+                    padding: 12px;
+                    text-align: right;
+                    border: 1px solid #dee2e6;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 2px solid #dee2e6;
+                    text-align: center;
+                    font-size: 12px;
+                    color: #6c757d;
+                }}
+                code {{
+                    background-color: #f8f9fa;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-family: 'Courier New', monospace;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1 style="margin: 0; color: #007bff;">🧪 QA Analysis Report</h1>
+                    <div class="score-badge">{score}/100</div>
+                    <div class="status-badge">{score_status}</div>
+                    <p style="margin: 10px 0 0 0; color: #6c757d;">Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}</p>
+                </div>
+
+                <h2 style="color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">📊 Quality Metrics</h2>
+                <div class="metrics-grid">
+                    <div class="metric-row">
+                        <div class="metric-label">📈 Code Coverage</div>
+                        <div class="metric-value" style="color: {cov_color}; font-weight: bold;">{coverage:.1f}%</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">📏 Lines Covered</div>
+                        <div class="metric-value">{report['coverage']['lines_covered']:,} / {report['coverage']['lines_total']:,}</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">✅ Tests Passing</div>
+                        <div class="metric-value">{report['tests']['passed']} / {report['tests']['total']}</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">❌ Tests Failing</div>
+                        <div class="metric-value">{report['tests']['failed']}</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">⏭️ Tests Skipped</div>
+                        <div class="metric-value">{report['tests']['skipped']}</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">📝 Missing Test Files</div>
+                        <div class="metric-value">{report['coverage']['missing_files']}</div>
+                    </div>
+                </div>
+
+                <h2 style="color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">⚠️ Coverage Gaps</h2>
+                <div class="metrics-grid">
+                    <div class="metric-row">
+                        <div class="metric-label">🔴 Critical</div>
+                        <div class="metric-value">{report['gaps']['critical']}</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">🟠 High</div>
+                        <div class="metric-value">{report['gaps']['high']}</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">🟡 Medium</div>
+                        <div class="metric-value">{report['gaps']['medium']}</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">🟢 Low</div>
+                        <div class="metric-value">{report['gaps']['low']}</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label"><strong>Total Gaps</strong></div>
+                        <div class="metric-value"><strong>{report['gaps']['count']}</strong></div>
+                    </div>
+                </div>
+
+                {missing_files_html}
+
+                {gaps_html}
+
+                <div class="footer">
+                    <p>🤖 This report was automatically generated by the QA Sub-Agent</p>
+                    <p>Detailed report attached as JSON file</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return html
+
 
 if __name__ == "__main__":
     """Run QA analysis from command line"""
@@ -580,6 +888,22 @@ if __name__ == "__main__":
             with open("qa_report.json", "w") as f:
                 json.dump(report, f, indent=2)
             print(f"\n✅ Report saved to qa_report.json")
+
+        # Send email if requested
+        if "--email" in sys.argv:
+            email_index = sys.argv.index("--email")
+            if email_index + 1 < len(sys.argv):
+                to_email = sys.argv[email_index + 1]
+                success = qa_service.send_email_report(report, to_email)
+                if not success:
+                    print("\n⚠️  Email sending failed. Check environment variables:")
+                    print("   - EMAIL_USERNAME")
+                    print("   - EMAIL_PASSWORD")
+                    print("   - SMTP_SERVER (optional, defaults to smtp.gmail.com)")
+                    print("   - SMTP_PORT (optional, defaults to 587)")
+            else:
+                print("❌ Error: --email requires an email address")
+                print("Usage: python qa_service.py --email your@email.com")
 
         # Exit with error if quality score is low
         if report["quality_score"] < 60:
