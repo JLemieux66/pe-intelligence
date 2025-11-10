@@ -80,7 +80,20 @@ class InvestmentService(BaseService):
             CompanyTag.tag_value != 'Other'
         ).all()
         return [tag[0] for tag in industry_tags]
-    
+
+    def get_prediction_confidence_display(self, company: Company) -> Optional[str]:
+        """Convert prediction confidence float (0-1) to display string (High/Medium/Low)"""
+        if company.prediction_confidence is None:
+            return None
+
+        confidence = company.prediction_confidence
+        if confidence >= 0.7:
+            return "High"
+        elif confidence >= 0.5:
+            return "Medium"
+        else:
+            return "Low"
+
     def build_investment_response(self, investment: CompanyPEInvestment) -> InvestmentResponse:
         """Build a complete InvestmentResponse from a CompanyPEInvestment model"""
         headquarters = self.build_headquarters(investment.company)
@@ -103,7 +116,7 @@ class InvestmentService(BaseService):
             industry_category=investment.company.industry_category,
             industries=industries_list,
             predicted_revenue=investment.company.predicted_revenue,
-            prediction_confidence=investment.company.prediction_confidence,
+            prediction_confidence=self.get_prediction_confidence_display(investment.company),
             headquarters=headquarters,
             website=investment.company.website,
             linkedin_url=investment.company.linkedin_url,

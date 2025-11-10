@@ -131,6 +131,19 @@ class CompanyService(BaseService):
         ).all()
         return [tag[0] for tag in industry_tags]
     
+    def get_prediction_confidence_display(self, company: Company) -> Optional[str]:
+        """Convert prediction confidence float (0-1) to display string (High/Medium/Low)"""
+        if company.prediction_confidence is None:
+            return None
+
+        confidence = company.prediction_confidence
+        if confidence >= 0.7:
+            return "High"
+        elif confidence >= 0.5:
+            return "Medium"
+        else:
+            return "Low"
+
     def build_company_response(self, company: Company) -> CompanyResponse:
         """Build a complete CompanyResponse from a Company model"""
         pe_firms = self.get_company_pe_firms(company.id)
@@ -139,7 +152,7 @@ class CompanyService(BaseService):
         exit_type = self.get_company_exit_type(company.id)
         headquarters = self.build_headquarters(company)
         industries = self.get_company_industries(company.id)
-        
+
         return CompanyResponse(
             id=company.id,
             name=company.name,
@@ -167,7 +180,7 @@ class CompanyService(BaseService):
             avg_round_size_usd=company.avg_round_size_usd,
             total_investors=company.total_investors,
             predicted_revenue=company.predicted_revenue,
-            prediction_confidence=company.prediction_confidence,
+            prediction_confidence=self.get_prediction_confidence_display(company),
             is_public=company.is_public,
             stock_exchange=company.ipo_exchange,
             investor_name=getattr(company, 'investor_name', None),
