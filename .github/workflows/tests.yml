@@ -64,37 +64,139 @@ jobs:
         flags: frontend
         name: frontend-coverage
   
-  lint:
-    name: Code Linting
+  qa-analysis:
+    name: QA Analysis
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-    
+
+    - name: Install dependencies
+      run: pip install pipenv && pipenv install --dev
+
+    - name: Run QA Sub-Agent
+      run: |
+        python3 backend/services/qa_service.py --json
+      continue-on-error: true
+
+    - name: Upload QA Report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: qa-report
+        path: qa_report.json
+
+    - name: QA Summary
+      if: always()
+      run: |
+        if [ -f qa_report.json ]; then
+          echo "## QA Analysis Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python3 -c "
+import json
+with open('qa_report.json') as f:
+    report = json.load(f)
+    print(f\"**Quality Score:** {report['quality_score']}/100\")
+    print(f\"**Coverage:** {report['coverage']['percentage']:.1f}%\")
+    print(f\"**Tests:** {report['tests']['passed']}/{report['tests']['total']} passing\")
+    print(f\"**Missing Test Files:** {report['coverage']['missing_files']}\")
+    print(f\"**Coverage Gaps:** {report['gaps']['count']}\")
+          " >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Send QA Report Email
+      if: always() && github.ref == 'refs/heads/main'
+      env:
+        EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      run: |
+        if [ -n "${{ secrets.QA_EMAIL_RECIPIENT }}" ]; then
+          echo "📧 Sending QA report email..."
+          python3 backend/services/qa_service.py --email ${{ secrets.QA_EMAIL_RECIPIENT }}
+        else
+          echo "ℹ️  QA_EMAIL_RECIPIENT not configured, skipping email"
+        fi
+
+  security:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Run Security Sub-Agent
+      run: |
+        python3 backend/services/security_service.py --json
+      continue-on-error: true
+
+    - name: Upload Security Report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-report
+        path: security_report.json
+
+    - name: Security Scan Summary
+      if: always()
+      run: |
+        if [ -f security_report.json ]; then
+          echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python3 -c "
+import json
+with open('security_report.json') as f:
+    report = json.load(f)
+    summary = report['summary']
+    print(f\"**Security Score:** {summary['security_score']}/100\")
+    print(f\"**Total Issues:** {summary['total_issues']}\")
+    print(f\"- 🔴 Critical: {summary['critical']}\")
+    print(f\"- 🟠 High: {summary['high']}\")
+    print(f\"- 🟡 Medium: {summary['medium']}\")
+    print(f\"- 🟢 Low: {summary['low']}\")
+          " >> $GITHUB_STEP_SUMMARY
+        fi
+
+  lint:
+    name: Code Linting
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
     - name: Install linters
       run: |
         pip install flake8 black
-    
+
     - name: Run flake8
       run: flake8 backend/ src/ --max-line-length=120 --ignore=E203,W503
-    
+
     - name: Run black
       run: black --check backend/ src/
-    
+
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
-    
+
     - name: Install frontend linters
       working-directory: ./frontend-react
       run: npm ci
-    
+
     - name: Run ESLint
       working-directory: ./frontend-react
       run: npm run lint

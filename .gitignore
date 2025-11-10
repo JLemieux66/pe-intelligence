@@ -17,6 +17,7 @@ build/
 # Testing
 .pytest_cache/
 .coverage
+coverage*.json
 htmlcov/
 coverage/
 *.cover
@@ -64,6 +65,13 @@ Thumbs.db
 # Documentation (generated)
 CHANGES_SUMMARY.md
 IMPROVEMENT_PLAN.md
+
+# Security reports (generated)
+security_report.json
+
+# QA reports (generated)
+qa_report.json
+tests/generated/
 
 # OpenHands
 .openhands/cache/

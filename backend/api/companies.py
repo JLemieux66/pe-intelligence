@@ -78,9 +78,9 @@ def get_company(company_id: int, session = Depends(get_session)):
         return company
 
 
-@router.put("/companies/{company_id}")
+@router.put("/companies/{company_id}", dependencies=[Depends(verify_admin_token)])
 async def update_company(company_id: int, company_update: CompanyUpdate, session = Depends(get_session)):
-    """Update company details"""
+    """Update company details (Admin only)"""
     
     with CompanyService(session) as company_service:
         success = company_service.update_company(company_id, company_update)

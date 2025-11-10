@@ -15,6 +15,9 @@ from backend.api.investments import router as investments_router
 from backend.api.companies import router as companies_router
 from backend.api.similar_companies import router as similar_companies_router
 
+# Import security middleware
+from backend.middleware import RateLimitMiddleware
+
 # Initialize FastAPI
 app = FastAPI(
     title="PE Portfolio API V2",
@@ -35,8 +38,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Total-Count"],
+    expose_headers=["X-Total-Count", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
 )
+
+# Add rate limiting middleware for security
+# Protects against brute force attacks and DoS
+app.add_middleware(RateLimitMiddleware)
 
 
 @app.on_event("startup")

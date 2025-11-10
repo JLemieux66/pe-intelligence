@@ -1,0 +1,86 @@
+# Security Sub-Agent Configuration
+# Configure security scanning behavior and thresholds
+
+security:
+  # Minimum acceptable security score (0-100)
+  min_score: 80
+
+  # Fail CI/CD on critical or high severity issues
+  fail_on_critical: true
+  fail_on_high: false
+
+  # Scanners to enable/disable
+  scanners:
+    authentication: true
+    rate_limiting: true
+    input_validation: true
+    secrets: true
+    cors: true
+
+  # Whitelist certain paths/patterns from scanning
+  whitelist:
+    # Public endpoints that legitimately don't need auth
+    public_endpoints:
+      - /login
+      - /register
+      - /health
+      - /docs
+      - /openapi.json
+
+    # Files to skip in security scans
+    skip_files:
+      - "**/test_*.py"
+      - "**/*_test.py"
+      - "**/conftest.py"
+      - "**/__pycache__/**"
+      - "**/venv/**"
+      - "**/node_modules/**"
+
+rate_limiting:
+  # Default rate limits
+  default:
+    requests: 100
+    window: 60  # seconds
+    block_duration: 300  # seconds
+
+  # Endpoint-specific limits
+  endpoints:
+    /api/auth/login:
+      requests: 5
+      window: 60
+      block_duration: 600
+
+    /api/companies:
+      requests: 50
+      window: 60
+
+    /api/investments:
+      requests: 50
+      window: 60
+
+reporting:
+  # Output formats
+  formats:
+    - console  # Print to console
+    - json     # Generate JSON report
+
+  # Report detail level (minimal, normal, verbose)
+  detail_level: normal
+
+  # Include recommendations in report
+  include_recommendations: true
+
+  # Group issues by category
+  group_by_category: true
+
+notifications:
+  # Notification channels (future enhancement)
+  enabled: false
+  channels:
+    - slack
+    - email
+
+  # Notification thresholds
+  notify_on:
+    - critical
+    - high
