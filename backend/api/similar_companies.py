@@ -22,19 +22,29 @@ async def find_similar_companies(
 ):
     """
     Find similar companies based on input company IDs.
-    
-    Uses AI-powered weighted scoring algorithm across multiple dimensions:
-    - Verticals/Sub-industries (18 points)
-    - Industry tags (8 points) 
-    - Sector (6 points)
-    - Revenue (42 points)
-    - Employee count (13 points)
-    - Total funding (4 points)
-    - Public/private status (4 points)
-    - Geography (4 points)
-    - Funding stage (1 point)
-    
-    Returns ranked list of similar companies with AI-generated reasoning.
+
+    COMPREHENSIVE REVENUE & EMPLOYEE-FIRST ALGORITHM with Multi-Dimensional Matching
+
+    Scoring Distribution (100 points):
+    - Revenue: 30 pts (PitchBook exact) OR 15 pts (Crunchbase bands) [30%]
+    - Employee Count: 25 pts (granular bands) [25%]
+    - Investor Overlap: 12 pts (shared PE firms) [12%] 🆕
+    - Verticals: 12 pts (PitchBook sub-industries) [12%]
+    - Industry Category: 8 pts (Crunchbase categories) [8%]
+    - Description Similarity: 5 pts (keyword matching) [5%] 🆕
+    - Business Model: 3 pts (SaaS/B2B/B2C/etc.) [3%] 🆕
+    - Funding Stage: 3 pts (maturity level) [3%]
+    - Geography: 1 pt (country/region) [1%]
+    - Funding Type: 1 pt (series/buyout/etc.) [1%]
+
+    Key Features:
+    - Revenue+Employees = 55% of score (size-first matching)
+    - Investor overlap rewards shared PE relationships
+    - Crunchbase revenue fallback when PitchBook unavailable
+    - Business model inference from industry data
+    - Revenue pre-filter: 0.1x to 10x range (100x spread)
+
+    Returns ranked list of similar companies with detailed reasoning.
     Requires authentication.
     """
     try:

@@ -155,16 +155,17 @@ class SimilarCompaniesService(BaseService):
         # This dramatically improves result quality and speed
         if input_companies[0].current_revenue_usd:
             input_revenue = input_companies[0].current_revenue_usd
-            # Keep companies within 0.2x to 5x revenue range (covers 25x total range)
-            min_revenue = input_revenue * 0.2
-            max_revenue = input_revenue * 5.0
-            
+            # Keep companies within 0.1x to 10x revenue range (covers 100x total range)
+            # More generous range to capture edge cases while still filtering outliers
+            min_revenue = input_revenue * 0.1
+            max_revenue = input_revenue * 10.0
+
             before_revenue_filter = len(candidates)
             candidates = [
-                c for c in candidates 
+                c for c in candidates
                 if c.current_revenue_usd and min_revenue <= c.current_revenue_usd <= max_revenue
             ]
-            print(f"   Revenue filter: ${input_revenue:.1f}M ±80% to 5x = {len(candidates)} companies (was {before_revenue_filter})")
+            print(f"   Revenue filter: ${input_revenue:.1f}M (10% to 10x) = {len(candidates)} companies (was {before_revenue_filter})")
         
         # AGGRESSIVE FILTERING: Limit to max 100 candidates to prevent timeout
         max_candidates = 100
@@ -281,7 +282,20 @@ class SimilarCompaniesService(BaseService):
     def calculate_similarity_score(self, company_a: Company, company_b: Company) -> Tuple[float, List[str], Dict[str, Dict[str, float]], float, int]:
         """
         Enhanced similarity score calculation between two companies (0-100).
-        NEW WEIGHTING SYSTEM - Optimized based on user feedback
+        COMPREHENSIVE REVENUE & EMPLOYEE-FIRST WEIGHTING SYSTEM
+
+        Scoring Distribution (100 points):
+        - Revenue (PitchBook exact): 30 pts OR Crunchbase bands: 15 pts (30%)
+        - Employee Count (enhanced): 25 points (25%)
+        - Investor Overlap (PE firms): 12 points (12%)
+        - Verticals: 12 points (12%)
+        - Industry Category: 8 points (8%)
+        - Description Similarity: 5 points (5%)
+        - Business Model: 3 points (3%)
+        - Funding Stage: 3 points (3%)
+        - Geography: 1 point (1%)
+        - Funding Type: 1 point (1%)
+
         Returns: (similarity_score, matching_attributes, score_breakdown, confidence, categories_with_score)
         """
         matching_attributes = []
@@ -289,239 +303,454 @@ class SimilarCompaniesService(BaseService):
         total_score = 0.0
         confidence_factors = []
         categories_with_score = 0
-        
+
         # Helper function to safely get attribute
         def safe_get(obj, attr, default=None):
             return getattr(obj, attr, default) if obj else default
-        
+
         # Helper function to safely split and clean strings
         def safe_split(text, delimiter=','):
             if not text:
                 return set()
             return set(item.strip().lower() for item in text.split(delimiter) if item.strip())
-        
-        # 1. Verticals similarity (30 points) - MOST IMPORTANT - PitchBook verticals
+
+        # Helper function to convert Crunchbase revenue range to midpoint (in millions USD)
+        def get_revenue_midpoint(revenue_code):
+            """Convert Crunchbase revenue code to approximate midpoint in millions USD"""
+            revenue_map = {
+                "r_00000000": 0.5,      # Less than $1M -> 0.5M
+                "r_00001000": 5.5,      # $1M - $10M -> 5.5M
+                "r_00010000": 30,       # $10M - $50M -> 30M
+                "r_00050000": 75,       # $50M - $100M -> 75M
+                "r_00100000": 300,      # $100M - $500M -> 300M
+                "r_00500000": 750,      # $500M - $1B -> 750M
+                "r_01000000": 5500,     # $1B - $10B -> 5.5B
+                "r_10000000": 15000,    # $10B+ -> 15B
+            }
+            return revenue_map.get(revenue_code, None)
+
+        # 1. REVENUE SIMILARITY (30 points PitchBook OR 15 points Crunchbase) - HIGHEST PRIORITY
+        revenue_a = safe_get(company_a, 'current_revenue_usd')
+        revenue_b = safe_get(company_b, 'current_revenue_usd')
+
+        # Try PitchBook exact revenue first (30 points possible)
+        if revenue_a and revenue_b and revenue_a > 0 and revenue_b > 0:
+            ratio = min(revenue_a, revenue_b) / max(revenue_a, revenue_b)
+
+            # Granular scoring bands - reward close matches heavily
+            if ratio >= 0.9:  # Within 10%
+                revenue_score = 30
+                matching_attributes.append(f"Nearly identical revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
+            elif ratio >= 0.8:  # Within 20%
+                revenue_score = 27
+                matching_attributes.append(f"Very similar revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
+            elif ratio >= 0.7:  # Within 30%
+                revenue_score = 24
+                matching_attributes.append(f"Highly similar revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
+            elif ratio >= 0.6:  # Within 40%
+                revenue_score = 21
+                matching_attributes.append(f"Very similar revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
+            elif ratio >= 0.5:  # Within 50%
+                revenue_score = 18
+                matching_attributes.append(f"Similar revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
+            elif ratio >= 0.4:  # Within 60%
+                revenue_score = 13
+                matching_attributes.append(f"Comparable revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
+            elif ratio >= 0.3:  # Within 70%
+                revenue_score = 8
+                matching_attributes.append(f"Similar revenue scale: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
+            elif ratio >= 0.2:  # Within 80%
+                revenue_score = 4
+                matching_attributes.append(f"Same revenue tier: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
+            else:
+                revenue_score = 0
+
+            total_score += revenue_score
+            categories_with_score += 1
+            confidence_factors.append(0.95)  # Very high confidence for PitchBook data
+
+            score_breakdown['revenue_pitchbook'] = {
+                'score': revenue_score,
+                'max_score': 30,
+                'company_a_value': revenue_a,
+                'company_b_value': revenue_b,
+                'ratio': ratio,
+                'source': 'PitchBook'
+            }
+
+        # Fallback to Crunchbase revenue bands if PitchBook unavailable (15 points possible)
+        elif not (revenue_a and revenue_b):
+            rev_code_a = safe_get(company_a, 'revenue_range')
+            rev_code_b = safe_get(company_b, 'revenue_range')
+
+            if rev_code_a and rev_code_b:
+                rev_mid_a = get_revenue_midpoint(rev_code_a)
+                rev_mid_b = get_revenue_midpoint(rev_code_b)
+
+                if rev_mid_a and rev_mid_b:
+                    # Same scoring logic but max 15 points
+                    ratio = min(rev_mid_a, rev_mid_b) / max(rev_mid_a, rev_mid_b)
+
+                    if ratio >= 0.9:
+                        revenue_score = 15
+                        matching_attributes.append(f"Similar revenue band (Crunchbase)")
+                    elif ratio >= 0.8:
+                        revenue_score = 13
+                        matching_attributes.append(f"Similar revenue band (Crunchbase)")
+                    elif ratio >= 0.7:
+                        revenue_score = 11
+                        matching_attributes.append(f"Similar revenue band (Crunchbase)")
+                    elif ratio >= 0.6:
+                        revenue_score = 9
+                        matching_attributes.append(f"Comparable revenue band (Crunchbase)")
+                    elif ratio >= 0.5:
+                        revenue_score = 7
+                        matching_attributes.append(f"Comparable revenue band (Crunchbase)")
+                    elif ratio >= 0.4:
+                        revenue_score = 5
+                        matching_attributes.append(f"Same revenue tier (Crunchbase)")
+                    elif ratio >= 0.3:
+                        revenue_score = 3
+                        matching_attributes.append(f"Same revenue tier (Crunchbase)")
+                    else:
+                        revenue_score = 0
+
+                    total_score += revenue_score
+                    categories_with_score += 1
+                    confidence_factors.append(0.7)  # Lower confidence for band data
+
+                    score_breakdown['revenue_crunchbase'] = {
+                        'score': revenue_score,
+                        'max_score': 15,
+                        'company_a_value': rev_code_a,
+                        'company_b_value': rev_code_b,
+                        'ratio': ratio,
+                        'source': 'Crunchbase'
+                    }
+
+        # 2. EMPLOYEE COUNT SIMILARITY (25 points) - SECOND HIGHEST PRIORITY
+        # Enhanced with more granular bands
+        emp_a = safe_get(company_a, 'employee_count')
+        emp_b = safe_get(company_b, 'employee_count')
+
+        if emp_a and emp_b and emp_a > 0 and emp_b > 0:
+            # Calculate ratio (smaller/larger)
+            ratio = min(emp_a, emp_b) / max(emp_a, emp_b)
+
+            # Granular scoring bands - reward close matches
+            if ratio >= 0.9:  # Within 10%
+                employee_score = 25
+                matching_attributes.append(f"Nearly identical employee count: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.8:  # Within 20%
+                employee_score = 22
+                matching_attributes.append(f"Very similar employee count: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.7:  # Within 30%
+                employee_score = 19
+                matching_attributes.append(f"Highly similar team size: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.6:  # Within 40%
+                employee_score = 16
+                matching_attributes.append(f"Similar employee count: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.5:  # Within 50%
+                employee_score = 13
+                matching_attributes.append(f"Comparable team size: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.4:  # Within 60%
+                employee_score = 10
+                matching_attributes.append(f"Similar company size: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.3:  # Within 70%
+                employee_score = 7
+                matching_attributes.append(f"Similar scale: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.2:  # Within 80%
+                employee_score = 4
+                matching_attributes.append(f"Same size category: {emp_a:,} vs {emp_b:,}")
+            else:
+                employee_score = 0
+
+            total_score += employee_score
+            categories_with_score += 1
+            confidence_factors.append(0.95)  # Very high confidence for employee data
+
+            score_breakdown['employee_count'] = {
+                'score': employee_score,
+                'max_score': 25,
+                'company_a_value': emp_a,
+                'company_b_value': emp_b,
+                'ratio': ratio
+            }
+
+        # 3. INVESTOR OVERLAP (12 points) - HIGH IMPACT - Shared PE firms
+        pe_firms_a = set()
+        pe_firms_b = set()
+
+        if hasattr(company_a, 'investments') and company_a.investments:
+            pe_firms_a = {inv.pe_firm.name for inv in company_a.investments if inv.pe_firm}
+
+        if hasattr(company_b, 'investments') and company_b.investments:
+            pe_firms_b = {inv.pe_firm.name for inv in company_b.investments if inv.pe_firm}
+
+        if pe_firms_a and pe_firms_b:
+            shared_investors = pe_firms_a.intersection(pe_firms_b)
+            union_investors = pe_firms_a.union(pe_firms_b)
+
+            if shared_investors:
+                # Jaccard similarity with bonus for multiple shared investors
+                jaccard = len(shared_investors) / len(union_investors) if union_investors else 0
+                investor_score = jaccard * 12
+
+                # Bonus: Multiple shared investors = stronger signal
+                if len(shared_investors) >= 3:
+                    investor_score = min(12, investor_score * 1.2)  # 20% bonus
+                elif len(shared_investors) >= 2:
+                    investor_score = min(12, investor_score * 1.1)  # 10% bonus
+
+                total_score += investor_score
+                categories_with_score += 1
+                confidence_factors.append(0.95)  # Very high confidence
+
+                investor_names = ', '.join(sorted(shared_investors)[:3])
+                if len(shared_investors) > 3:
+                    investor_names += f" +{len(shared_investors) - 3} more"
+
+                matching_attributes.append(f"Shared investors: {investor_names}")
+
+                score_breakdown['investor_overlap'] = {
+                    'score': investor_score,
+                    'max_score': 12,
+                    'shared_count': len(shared_investors),
+                    'shared_investors': list(shared_investors),
+                    'jaccard_similarity': jaccard
+                }
+
+        # 4. Verticals similarity (12 points) - PitchBook verticals
         verticals_a = safe_split(safe_get(company_a, 'verticals'))
         verticals_b = safe_split(safe_get(company_b, 'verticals'))
-        
+
         if verticals_a and verticals_b:
             # Calculate Jaccard similarity (intersection over union)
             intersection = len(verticals_a.intersection(verticals_b))
             union = len(verticals_a.union(verticals_b))
             jaccard_similarity = intersection / union if union > 0 else 0
-            
-            verticals_score = jaccard_similarity * 30
+
+            verticals_score = jaccard_similarity * 12
             total_score += verticals_score
             categories_with_score += 1
             confidence_factors.append(0.9)  # High confidence for PitchBook data
-            
+
             score_breakdown['verticals'] = {
                 'score': verticals_score,
-                'max_score': 30,
+                'max_score': 12,
                 'company_a_value': ', '.join(sorted(verticals_a)) if verticals_a else 'None',
                 'company_b_value': ', '.join(sorted(verticals_b)) if verticals_b else 'None',
                 'jaccard_similarity': jaccard_similarity
             }
-            
+
             if intersection > 0:
                 shared_verticals = verticals_a.intersection(verticals_b)
                 matching_attributes.append(f"Shared verticals: {', '.join(sorted(shared_verticals))}")
-        
-        # 2. Industry Category similarity (20 points) - More detailed than sector
+
+        # 5. Industry Category similarity (8 points) - More detailed than sector
         industry_cat_a = safe_split(safe_get(company_a, 'industry_category'))
         industry_cat_b = safe_split(safe_get(company_b, 'industry_category'))
-        
+
         if industry_cat_a and industry_cat_b:
             # Calculate Jaccard similarity
             intersection = len(industry_cat_a.intersection(industry_cat_b))
             union = len(industry_cat_a.union(industry_cat_b))
             jaccard_similarity = intersection / union if union > 0 else 0
-            
-            industry_score = jaccard_similarity * 20
+
+            industry_score = jaccard_similarity * 8
             total_score += industry_score
             categories_with_score += 1
             confidence_factors.append(0.85)  # Good confidence for detailed industry data
-            
+
             score_breakdown['industry_category'] = {
                 'score': industry_score,
-                'max_score': 20,
+                'max_score': 8,
                 'company_a_value': ', '.join(sorted(industry_cat_a)) if industry_cat_a else 'None',
                 'company_b_value': ', '.join(sorted(industry_cat_b)) if industry_cat_b else 'None',
                 'jaccard_similarity': jaccard_similarity
             }
-            
+
             if intersection > 0:
                 shared_industries = industry_cat_a.intersection(industry_cat_b)
                 matching_attributes.append(f"Shared industry categories: {', '.join(sorted(shared_industries))}")
-        
-        # 3. Employee Count similarity (15 points) - IMPORTANT per user feedback
-        emp_a = safe_get(company_a, 'employee_count')
-        emp_b = safe_get(company_b, 'employee_count')
-        
-        if emp_a and emp_b and emp_a > 0 and emp_b > 0:
-            # Calculate ratio similarity with tighter bands
-            ratio = min(emp_a, emp_b) / max(emp_a, emp_b)
-            
-            if ratio >= 0.8:  # Within 20%
-                employee_score = 15
-                matching_attributes.append(f"Very similar employee count: {emp_a} vs {emp_b}")
-            elif ratio >= 0.6:  # Within 40%
-                employee_score = 12
-                matching_attributes.append(f"Similar employee count: {emp_a} vs {emp_b}")
-            elif ratio >= 0.4:  # Within 60%
-                employee_score = 8
-                matching_attributes.append(f"Comparable employee count: {emp_a} vs {emp_b}")
-            elif ratio >= 0.2:  # Within 80%
-                employee_score = 4
-                matching_attributes.append(f"Similar company size: {emp_a} vs {emp_b}")
-            else:
-                employee_score = 0
-            
-            total_score += employee_score
-            categories_with_score += 1
-            confidence_factors.append(0.9)  # High confidence for employee data
-            
-            score_breakdown['employee_count'] = {
-                'score': employee_score,
-                'max_score': 15,
-                'company_a_value': emp_a,
-                'company_b_value': emp_b,
-                'ratio': ratio
-            }
-        
-        # 4. Revenue Tier similarity (10 points) - Company maturity stage
-        revenue_tier_a = safe_get(company_a, 'revenue_tier')
-        revenue_tier_b = safe_get(company_b, 'revenue_tier')
-        
-        if revenue_tier_a and revenue_tier_b:
-            if revenue_tier_a.lower() == revenue_tier_b.lower():
-                revenue_tier_score = 10
-                matching_attributes.append(f"Same revenue tier: {revenue_tier_a}")
-            else:
-                # Partial credit for adjacent tiers
-                tier_order = ['early stage', 'growth stage', 'mature', 'large']
-                try:
-                    idx_a = tier_order.index(revenue_tier_a.lower())
-                    idx_b = tier_order.index(revenue_tier_b.lower())
-                    if abs(idx_a - idx_b) == 1:  # Adjacent tiers
-                        revenue_tier_score = 5
-                        matching_attributes.append(f"Adjacent revenue tiers: {revenue_tier_a} vs {revenue_tier_b}")
-                    else:
-                        revenue_tier_score = 0
-                except ValueError:
-                    revenue_tier_score = 0
-            
-            total_score += revenue_tier_score
-            categories_with_score += 1
-            confidence_factors.append(0.8)
-            
-            score_breakdown['revenue_tier'] = {
-                'score': revenue_tier_score,
-                'max_score': 10,
-                'company_a_value': revenue_tier_a,
-                'company_b_value': revenue_tier_b
-            }
-        
-        # 5. Funding Stage similarity (8 points) - Company maturity
+
+        # 6. DESCRIPTION SIMILARITY (5 points) - Keyword-based matching
+        desc_a = safe_get(company_a, 'description', '')
+        desc_b = safe_get(company_b, 'description', '')
+
+        if desc_a and desc_b:
+            # Extract meaningful keywords (exclude common words)
+            def extract_keywords(text):
+                if not text:
+                    return set()
+                # Convert to lowercase and split
+                words = text.lower().split()
+                # Filter out common words and short words
+                stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+                             'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'been', 'be',
+                             'this', 'that', 'these', 'those', 'it', 'its', 'they', 'their'}
+                keywords = {w.strip('.,!?;:') for w in words if len(w) > 3 and w not in stop_words}
+                return keywords
+
+            keywords_a = extract_keywords(desc_a)
+            keywords_b = extract_keywords(desc_b)
+
+            if keywords_a and keywords_b:
+                shared_keywords = keywords_a.intersection(keywords_b)
+                union_keywords = keywords_a.union(keywords_b)
+
+                if shared_keywords and union_keywords:
+                    jaccard = len(shared_keywords) / len(union_keywords)
+                    description_score = jaccard * 5
+
+                    if description_score > 1:  # Only count if meaningful overlap
+                        total_score += description_score
+                        categories_with_score += 1
+                        confidence_factors.append(0.6)  # Moderate confidence
+
+                        top_keywords = list(sorted(shared_keywords))[:5]
+                        matching_attributes.append(f"Similar business description")
+
+                        score_breakdown['description'] = {
+                            'score': description_score,
+                            'max_score': 5,
+                            'shared_keywords': top_keywords,
+                            'jaccard_similarity': jaccard
+                        }
+
+        # 7. BUSINESS MODEL SIMILARITY (3 points) - Inferred from verticals/industry
+        def infer_business_model(company):
+            """Infer business model from verticals and industry"""
+            models = set()
+
+            verticals_lower = safe_get(company, 'verticals', '').lower()
+            industry_lower = safe_get(company, 'industry_category', '').lower()
+            combined = f"{verticals_lower} {industry_lower}"
+
+            # SaaS indicators
+            if any(keyword in combined for keyword in ['saas', 'software', 'cloud', 'platform', 'application']):
+                models.add('saas')
+
+            # B2B indicators
+            if any(keyword in combined for keyword in ['enterprise', 'b2b', 'business', 'corporate', 'industrial']):
+                models.add('b2b')
+
+            # B2C indicators
+            if any(keyword in combined for keyword in ['consumer', 'retail', 'b2c', 'ecommerce', 'marketplace']):
+                models.add('b2c')
+
+            # Marketplace indicators
+            if any(keyword in combined for keyword in ['marketplace', 'platform', 'network']):
+                models.add('marketplace')
+
+            # Hardware indicators
+            if any(keyword in combined for keyword in ['hardware', 'device', 'equipment', 'manufacturing']):
+                models.add('hardware')
+
+            # Services indicators
+            if any(keyword in combined for keyword in ['service', 'consulting', 'professional']):
+                models.add('services')
+
+            return models
+
+        models_a = infer_business_model(company_a)
+        models_b = infer_business_model(company_b)
+
+        if models_a and models_b:
+            shared_models = models_a.intersection(models_b)
+
+            if shared_models:
+                # Full points if multiple shared models, partial for one
+                if len(shared_models) >= 2:
+                    business_model_score = 3
+                else:
+                    business_model_score = 2
+
+                total_score += business_model_score
+                categories_with_score += 1
+                confidence_factors.append(0.7)
+
+                matching_attributes.append(f"Similar business model: {', '.join(sorted(shared_models))}")
+
+                score_breakdown['business_model'] = {
+                    'score': business_model_score,
+                    'max_score': 3,
+                    'shared_models': list(shared_models),
+                    'company_a_models': list(models_a),
+                    'company_b_models': list(models_b)
+                }
+
+        # 8. Funding Stage similarity (3 points) - Company maturity
         funding_stage_a = safe_get(company_a, 'funding_stage_encoded')
         funding_stage_b = safe_get(company_b, 'funding_stage_encoded')
-        
+
         if funding_stage_a and funding_stage_b:
             # Similar funding stages (within 1-2 stages)
             stage_diff = abs(funding_stage_a - funding_stage_b)
             if stage_diff == 0:
-                funding_score = 8
+                funding_score = 3
                 matching_attributes.append(f"Same funding stage")
             elif stage_diff == 1:
-                funding_score = 6
+                funding_score = 2
                 matching_attributes.append(f"Adjacent funding stages")
             elif stage_diff == 2:
-                funding_score = 3
+                funding_score = 1
                 matching_attributes.append(f"Similar funding maturity")
             else:
                 funding_score = 0
-            
+
             total_score += funding_score
             categories_with_score += 1
             confidence_factors.append(0.8)
-            
+
             score_breakdown['funding_stage'] = {
                 'score': funding_score,
-                'max_score': 8,
+                'max_score': 3,
                 'company_a_value': funding_stage_a,
                 'company_b_value': funding_stage_b,
                 'stage_difference': stage_diff
             }
-        
-        # 6. Company Size Category similarity (7 points) - Small/Medium/Large
-        size_cat_a = safe_get(company_a, 'company_size_category')
-        size_cat_b = safe_get(company_b, 'company_size_category')
-        
-        if size_cat_a and size_cat_b:
-            if size_cat_a.lower() == size_cat_b.lower():
-                size_score = 7
-                matching_attributes.append(f"Same company size category: {size_cat_a}")
-            else:
-                size_score = 0
-            
-            total_score += size_score
-            categories_with_score += 1
-            confidence_factors.append(0.85)
-            
-            score_breakdown['company_size'] = {
-                'score': size_score,
-                'max_score': 7,
-                'company_a_value': size_cat_a,
-                'company_b_value': size_cat_b
-            }
-        
-        # 7. Geographic proximity (5 points) - REDUCED importance
+
+        # 9. Geographic proximity (1 point) - Lower priority
         country_a = safe_get(company_a, 'hq_country')
         country_b = safe_get(company_b, 'hq_country')
         state_a = safe_get(company_a, 'state_region')
         state_b = safe_get(company_b, 'state_region')
-        
+
         geo_score = 0
         if country_a and country_b:
             if country_a.lower() == country_b.lower():
+                geo_score = 1  # Same country
                 if state_a and state_b and state_a.lower() == state_b.lower():
-                    geo_score = 5  # Same state/region
                     matching_attributes.append(f"Same state/region: {state_a}")
                 else:
-                    geo_score = 3  # Same country
                     matching_attributes.append(f"Same country: {country_a}")
-            else:
-                # Regional proximity (US/Canada, EU countries, etc.)
-                us_canada = {'united states', 'canada'}
-                if country_a.lower() in us_canada and country_b.lower() in us_canada:
-                    geo_score = 2
-                    matching_attributes.append(f"Same region: United States and Canada")
-        
+
         total_score += geo_score
         if geo_score > 0:
             categories_with_score += 1
             confidence_factors.append(0.9)
-            
+
             score_breakdown['geography'] = {
                 'score': geo_score,
-                'max_score': 5,
+                'max_score': 1,
                 'company_a_country': country_a,
                 'company_b_country': country_b,
                 'company_a_state': state_a,
                 'company_b_state': state_b
             }
-        
-        # 8. Funding Type similarity (3 points) - Series A vs LBO vs IPO
+
+        # 10. Funding Type similarity (1 point) - Lowest priority
         funding_type_a = safe_get(company_a, 'last_financing_deal_type')
         funding_type_b = safe_get(company_b, 'last_financing_deal_type')
-        
+
         if funding_type_a and funding_type_b:
             # Group similar funding types
             growth_types = {'series_a', 'series_b', 'series_c', 'series_d', 'series_e'}
             late_types = {'series_f', 'series_g', 'growth_equity', 'late_stage_vc'}
             buyout_types = {'buyout/lbo', 'management_buyout', 'leveraged_buyout'}
             debt_types = {'debt', 'debt_financing', 'debt - general'}
-            
+
             def get_funding_category(funding_type):
                 ft_lower = funding_type.lower().replace(' ', '_').replace('-', '_')
                 if any(t in ft_lower for t in growth_types):
@@ -536,73 +765,28 @@ class SimilarCompaniesService(BaseService):
                     return 'public'
                 else:
                     return 'other'
-            
+
             cat_a = get_funding_category(funding_type_a)
             cat_b = get_funding_category(funding_type_b)
-            
+
             if cat_a == cat_b:
-                funding_type_score = 3
-                matching_attributes.append(f"Similar funding type category: {cat_a}")
+                funding_type_score = 1
+                matching_attributes.append(f"Similar funding type: {cat_a}")
             else:
                 funding_type_score = 0
-            
+
             total_score += funding_type_score
             categories_with_score += 1
             confidence_factors.append(0.7)
-            
+
             score_breakdown['funding_type'] = {
                 'score': funding_type_score,
-                'max_score': 3,
+                'max_score': 1,
                 'company_a_value': funding_type_a,
                 'company_b_value': funding_type_b,
                 'company_a_category': cat_a,
                 'company_b_category': cat_b
             }
-        
-        # 9. Valuation Tier similarity (2 points) - Similar valuation ranges
-        val_a = safe_get(company_a, 'last_known_valuation_usd')
-        val_b = safe_get(company_b, 'last_known_valuation_usd')
-        
-        if val_a and val_b and val_a > 0 and val_b > 0:
-            # Define valuation tiers (in millions)
-            def get_valuation_tier(valuation):
-                if valuation < 10:
-                    return 'seed'
-                elif valuation < 50:
-                    return 'early'
-                elif valuation < 200:
-                    return 'growth'
-                elif valuation < 1000:
-                    return 'late'
-                elif valuation < 5000:
-                    return 'unicorn'
-                else:
-                    return 'mega'
-            
-            tier_a = get_valuation_tier(val_a)
-            tier_b = get_valuation_tier(val_b)
-            
-            if tier_a == tier_b:
-                valuation_score = 2
-                matching_attributes.append(f"Similar valuation tier: {tier_a}")
-            else:
-                valuation_score = 0
-            
-            total_score += valuation_score
-            categories_with_score += 1
-            confidence_factors.append(0.7)
-            
-            score_breakdown['valuation_tier'] = {
-                'score': valuation_score,
-                'max_score': 2,
-                'company_a_value': val_a,
-                'company_b_value': val_b,
-                'company_a_tier': tier_a,
-                'company_b_tier': tier_b
-            }
-        
-        # 10. Company Status similarity (REMOVED from old system - not needed with new approach)
-        # The new system focuses on business fundamentals rather than just public/private status
         
         # Calculate overall confidence score
         if confidence_factors:
