@@ -1,0 +1,10 @@
+# Railway Deployment Trigger
+# This file triggers a fresh deployment to ensure ML dependencies are installed
+
+Last deployment trigger: 2025-11-10
+Reason: Install ML dependencies (numpy, pandas, scikit-learn, xgboost, lightgbm, scipy)
+
+These dependencies are required for:
+- ML model loading and prediction
+- Revenue prediction feature
+- ML Enrichment button in admin panel
