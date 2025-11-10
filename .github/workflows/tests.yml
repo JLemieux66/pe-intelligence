@@ -64,37 +64,81 @@ jobs:
         flags: frontend
         name: frontend-coverage
   
-  lint:
-    name: Code Linting
+  security:
+    name: Security Scanning
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-    
+
+    - name: Run Security Sub-Agent
+      run: |
+        python3 backend/services/security_service.py --json
+      continue-on-error: true
+
+    - name: Upload Security Report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-report
+        path: security_report.json
+
+    - name: Security Scan Summary
+      if: always()
+      run: |
+        if [ -f security_report.json ]; then
+          echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python3 -c "
+import json
+with open('security_report.json') as f:
+    report = json.load(f)
+    summary = report['summary']
+    print(f\"**Security Score:** {summary['security_score']}/100\")
+    print(f\"**Total Issues:** {summary['total_issues']}\")
+    print(f\"- 🔴 Critical: {summary['critical']}\")
+    print(f\"- 🟠 High: {summary['high']}\")
+    print(f\"- 🟡 Medium: {summary['medium']}\")
+    print(f\"- 🟢 Low: {summary['low']}\")
+          " >> $GITHUB_STEP_SUMMARY
+        fi
+
+  lint:
+    name: Code Linting
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
     - name: Install linters
       run: |
         pip install flake8 black
-    
+
     - name: Run flake8
       run: flake8 backend/ src/ --max-line-length=120 --ignore=E203,W503
-    
+
     - name: Run black
       run: black --check backend/ src/
-    
+
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
-    
+
     - name: Install frontend linters
       working-directory: ./frontend-react
       run: npm ci
-    
+
     - name: Run ESLint
       working-directory: ./frontend-react
       run: npm run lint
