@@ -493,3 +493,56 @@ class TestApplyFilters:
 
         # Should call filter multiple times
         assert mock_query.filter.called
+
+    def test_format_employee_count_crunchbase_fallback(self, service):
+        """Test employee count with Crunchbase fallback"""
+        company = Mock(spec=Company)
+        company.employee_count = None
+        company.projected_employee_count = None
+        company.crunchbase_employee_count = "c_00100_00250"
+        
+        with patch('backend.services.investment_service.decode_employee_count') as mock_decode:
+            mock_decode.return_value = "100-250"
+            result = service.format_employee_count(company)
+            
+            assert result == "100-250"
+            mock_decode.assert_called_once_with("c_00100_00250")
+
+    def test_get_crunchbase_url_attribute_error(self, service, mock_session):
+        """Test Crunchbase URL with AttributeError fallback"""
+        company = Mock(spec=Company)
+        company.id = 123
+        # Simulate AttributeError on crunchbase_url access
+        type(company).crunchbase_url = property(lambda self: (_ for _ in ()).throw(AttributeError()))
+        
+        # Mock SQL query result
+        mock_result = Mock()
+        mock_result.fetchone.return_value = ("https://crunchbase.com/test",)
+        mock_session.execute.return_value = mock_result
+        
+        result = service.get_crunchbase_url_with_fallback(company)
+        
+        assert result == "https://crunchbase.com/test"
+
+    def test_get_crunchbase_url_sql_error(self, service, mock_session):
+        """Test Crunchbase URL with SQL error"""
+        company = Mock(spec=Company)
+        company.id = 123
+        type(company).crunchbase_url = property(lambda self: (_ for _ in ()).throw(AttributeError()))
+        
+        # Mock SQL query to raise exception
+        mock_session.execute.side_effect = Exception("Database error")
+        
+        result = service.get_crunchbase_url_with_fallback(company)
+        
+        assert result is None
+
+    def test_apply_filters_industry_group(self, service):
+        """Test industry_group filter"""
+        mock_query = Mock()
+        
+        result = service.apply_filters(mock_query, {'industry_group': 'Enterprise Software,SaaS'})
+        
+        # Should filter by industry_group
+        assert mock_query.filter.called
+
