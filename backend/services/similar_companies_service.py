@@ -623,8 +623,8 @@ class SimilarCompaniesService(BaseService):
             """Infer business model from verticals and industry"""
             models = set()
 
-            verticals_lower = safe_get(company, 'verticals', '').lower()
-            industry_lower = safe_get(company, 'industry_category', '').lower()
+            verticals_lower = (safe_get(company, 'verticals') or '').lower()
+            industry_lower = (safe_get(company, 'industry_category') or '').lower()
             combined = f"{verticals_lower} {industry_lower}"
 
             # SaaS indicators
