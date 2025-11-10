@@ -52,12 +52,38 @@ async def validate_environment():
     """Validate required environment variables on startup"""
     required_vars = ["DATABASE_URL"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
-    
+
     if missing_vars:
         print(f"⚠️  WARNING: Missing environment variables: {', '.join(missing_vars)}")
         print("   The application may not function correctly without these variables.")
     else:
         print("✅ All required environment variables are set")
+
+
+@app.on_event("startup")
+async def enrich_companies_on_startup():
+    """
+    Optionally enrich companies with ML predictions on startup
+    Set ML_ENRICH_ON_STARTUP=true in environment to enable
+    """
+    if os.getenv("ML_ENRICH_ON_STARTUP", "false").lower() == "true":
+        print("🤖 ML enrichment enabled - enriching companies with revenue predictions...")
+        try:
+            from backend.database_pool import SessionLocal
+            from backend.services.ml_enrichment_service import MLEnrichmentService
+
+            db = SessionLocal()
+            try:
+                enrichment_service = MLEnrichmentService()
+                count = enrichment_service.enrich_all_companies(db, force_update=False, batch_size=50)
+                print(f"✅ Successfully enriched {count} companies with ML predictions")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"⚠️  ML enrichment failed: {e}")
+            print("   Application will continue without ML enrichment")
+    else:
+        print("ℹ️  ML enrichment on startup is disabled (set ML_ENRICH_ON_STARTUP=true to enable)")
 
 
 @app.get("/health")
