@@ -9,11 +9,14 @@ import pandas as pd
 from pathlib import Path
 import pickle
 import sys
+from sqlalchemy.orm import Session
 
 # Add ml_pipeline to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "ml_pipeline"))
 
 from data_preprocessing import FeatureEngineer
+from backend.database_pool import get_db
+from backend.services.ml_enrichment_service import MLEnrichmentService
 
 router = APIRouter(prefix="/ml", tags=["ML Predictions"])
 
@@ -372,4 +375,126 @@ async def get_feature_importance(top_n: int = 20):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to retrieve feature importance: {str(e)}"
+        )
+
+
+@router.post("/enrich/company/{company_id}")
+async def enrich_company_with_prediction(
+    company_id: int,
+    force_update: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Enrich a single company with ML revenue prediction
+
+    Args:
+        company_id: Company ID to enrich
+        force_update: Re-predict even if prediction already exists
+
+    Returns:
+        Updated company with prediction
+    """
+    try:
+        enrichment_service = MLEnrichmentService()
+        company = enrichment_service.enrich_company(db, company_id, force_update)
+
+        if not company:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Company {company_id} not found"
+            )
+
+        # Get full prediction details
+        prediction = enrichment_service.predict_revenue(company)
+
+        return {
+            "company_id": company.id,
+            "company_name": company.name,
+            "predicted_revenue_millions": prediction['predicted_revenue'] if prediction else None,
+            "confidence_level": prediction['confidence_level'] if prediction else None,
+            "confidence_interval": {
+                "lower": prediction['confidence_lower'] if prediction else None,
+                "upper": prediction['confidence_upper'] if prediction else None
+            },
+            "features_completeness": f"{prediction['features_completeness'] * 100:.1f}%" if prediction else None,
+            "updated": True
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to enrich company: {str(e)}"
+        )
+
+
+@router.post("/enrich/batch")
+async def enrich_companies_batch(
+    company_ids: List[int],
+    force_update: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Enrich multiple companies with ML predictions
+
+    Args:
+        company_ids: List of company IDs to enrich
+        force_update: Re-predict even if predictions already exist
+
+    Returns:
+        Summary of enrichment results
+    """
+    try:
+        enrichment_service = MLEnrichmentService()
+        enriched_count = enrichment_service.enrich_companies_batch(
+            db, company_ids, force_update
+        )
+
+        return {
+            "total_requested": len(company_ids),
+            "successfully_enriched": enriched_count,
+            "message": f"Enriched {enriched_count} out of {len(company_ids)} companies"
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch enrichment failed: {str(e)}"
+        )
+
+
+@router.post("/enrich/all")
+async def enrich_all_companies(
+    force_update: bool = False,
+    batch_size: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Enrich ALL companies in database with ML predictions
+
+    WARNING: This may take several minutes for large databases
+
+    Args:
+        force_update: Re-predict for all companies (even those with existing predictions)
+        batch_size: Number of companies to process at once
+
+    Returns:
+        Summary of enrichment results
+    """
+    try:
+        enrichment_service = MLEnrichmentService()
+        enriched_count = enrichment_service.enrich_all_companies(
+            db, force_update, batch_size
+        )
+
+        return {
+            "successfully_enriched": enriched_count,
+            "message": f"Successfully enriched {enriched_count} companies with ML predictions"
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Bulk enrichment failed: {str(e)}"
         )
