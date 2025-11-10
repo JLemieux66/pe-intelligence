@@ -10,7 +10,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "ml_pipeline"))
 
 from src.models.database_models_v2 import Company
-from backend.api.ml_predictions import load_models
 import pandas as pd
 import numpy as np
 import pickle
