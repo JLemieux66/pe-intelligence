@@ -96,7 +96,7 @@ class SimilarCompaniesService(BaseService):
                     exit_type = getattr(inv, 'exit_type', None)
                     
                     # Former investor with no exit_type or non-IPO exit = exclude
-                    if not exit_type or exit_type.strip() == '':
+                    if not exit_type or not exit_type.strip():
                         print(f"   [FILTER] Excluding {company.name} - Former investor with no exit_type")
                         return True
                     
@@ -108,9 +108,9 @@ class SimilarCompaniesService(BaseService):
                 # Also check computed_status = Exit
                 if computed_status and 'exit' in computed_status.lower():
                     exit_type = getattr(inv, 'exit_type', None)
-                    
+
                     # If status is Exit but no exit_type specified, exclude it (safer default)
-                    if not exit_type or exit_type.strip() == '':
+                    if not exit_type or not exit_type.strip():
                         print(f"   [FILTER] Excluding {company.name} - Exit status with no exit_type specified")
                         return True
                     
