@@ -76,6 +76,6 @@ tests/generated/
 # OpenHands
 .openhands/cache/
 # ML Pipeline Output
-ml_pipeline/output/models/*.pkl
+# Note: Committing model files so they're available in production
 ml_pipeline/output/plots/*.png
 ml_training_log.txt
