@@ -159,6 +159,205 @@ class TestCompanyService:
         assert service.EMPLOYEE_COUNT_CODES["1-10"] == "c_00001_00010"
         assert service.EMPLOYEE_COUNT_CODES["10,001+"] == "c_10001_max"
 
+    def test_get_company_status_unknown(self, service, mock_session):
+        """Test company status returns Unknown when no statuses"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.distinct.return_value = mock_query
+        mock_query.all.return_value = []
+
+        result = service.get_company_status(company_id=1)
+        assert result == "Unknown"
+
+    def test_get_company_status_other_status(self, service, mock_session):
+        """Test company status with neither Active nor Exit"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.distinct.return_value = mock_query
+        mock_query.all.return_value = [("Pending",)]
+
+        result = service.get_company_status(company_id=1)
+        assert result == "Pending"
+
+    def test_get_company_investment_year(self, service, mock_session):
+        """Test getting earliest investment year"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.first.return_value = ("2018",)
+
+        result = service.get_company_investment_year(company_id=1)
+        assert result == "2018"
+
+    def test_get_company_investment_year_none(self, service, mock_session):
+        """Test getting investment year when none exists"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.first.return_value = None
+
+        result = service.get_company_investment_year(company_id=1)
+        assert result is None
+
+    def test_get_company_exit_type(self, service, mock_session):
+        """Test getting exit type"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.first.return_value = ("IPO",)
+
+        result = service.get_company_exit_type(company_id=1)
+        assert result == "IPO"
+
+    def test_get_company_exit_type_none(self, service, mock_session):
+        """Test getting exit type when none exists"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.first.return_value = None
+
+        result = service.get_company_exit_type(company_id=1)
+        assert result is None
+
+    def test_get_company_industries(self, service, mock_session):
+        """Test getting company industries"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.all.return_value = [("Technology",), ("Software",)]
+
+        result = service.get_company_industries(company_id=1)
+        assert result == ["Technology", "Software"]
+
+    def test_apply_filters_search(self, service, mock_session):
+        """Test apply_filters with search term"""
+        from sqlalchemy import or_
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'search': 'Acme'})
+
+        assert mock_query.filter.called
+        assert result == mock_query.filter.return_value
+
+    def test_apply_filters_pe_firm(self, service, mock_session):
+        """Test apply_filters with PE firm filter"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'pe_firm': 'Sequoia,Accel'})
+
+        assert mock_query.filter.called
+
+    def test_apply_filters_status(self, service, mock_session):
+        """Test apply_filters with status filter"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'status': 'Active'})
+
+        assert mock_query.filter.called
+
+    def test_apply_filters_industry(self, service, mock_session):
+        """Test apply_filters with industry filter"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'industry': 'Technology,Healthcare'})
+
+        assert mock_query.join.called
+        assert mock_query.filter.called
+        assert mock_query.distinct.called
+
+    def test_apply_filters_industry_group(self, service, mock_session):
+        """Test apply_filters with industry group"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'industry_group': 'IT,Healthcare'})
+
+        assert mock_query.filter.called
+
+    def test_apply_filters_industry_sector(self, service, mock_session):
+        """Test apply_filters with industry sector"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'industry_sector': 'Software,Biotech'})
+
+        assert mock_query.filter.called
+
+    def test_apply_filters_verticals(self, service, mock_session):
+        """Test apply_filters with verticals"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'verticals': 'SaaS,Cloud'})
+
+        assert mock_query.filter.called
+
+    def test_apply_filters_location(self, service, mock_session):
+        """Test apply_filters with location filters"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {
+            'country': 'USA,Canada',
+            'state_region': 'CA,NY',
+            'city': 'San Francisco,New York'
+        })
+
+        assert mock_query.filter.call_count >= 3
+
+    def test_apply_filters_revenue_range(self, service, mock_session):
+        """Test apply_filters with revenue range"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'revenue_range': '$1M - $10M,$10M - $50M'})
+
+        assert mock_query.filter.called
+
+    def test_apply_filters_min_max_revenue(self, service, mock_session):
+        """Test apply_filters with min/max revenue"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'min_revenue': 1, 'max_revenue': 100})
+
+        assert mock_query.filter.call_count >= 2
+
+    def test_apply_filters_employee_count(self, service, mock_session):
+        """Test apply_filters with employee count ranges"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'employee_count': '1-10,11-50'})
+
+        assert mock_query.filter.called
+
+    def test_apply_filters_min_max_employees(self, service, mock_session):
+        """Test apply_filters with min/max employees"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'min_employees': 10, 'max_employees': 100})
+
+        assert mock_query.filter.call_count >= 2
+
+    def test_apply_filters_is_public(self, service, mock_session):
+        """Test apply_filters with public status"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {'is_public': True})
+
+        assert mock_query.filter.called
+
+    def test_apply_filters_combined(self, service, mock_session):
+        """Test apply_filters with multiple filters"""
+        mock_query = Mock()
+
+        result = service.apply_filters(mock_query, {
+            'search': 'Tech',
+            'status': 'Active',
+            'country': 'USA',
+            'is_public': False
+        })
+
+        assert mock_query.filter.call_count >= 4
+
 
 class TestCompanyServiceIntegration:
     """Integration tests for CompanyService with real database"""
