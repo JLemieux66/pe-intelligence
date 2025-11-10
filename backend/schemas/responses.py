@@ -34,8 +34,10 @@ class CompanyResponse(BaseModel):
     avg_round_size_usd: Optional[int] = None
     total_investors: Optional[int] = None
     # Predictions
-    predicted_revenue: Optional[float] = None  # ML-predicted revenue in USD
-    prediction_confidence: Optional[float] = None  # Confidence score 0-1
+    predicted_revenue: Optional[float] = None  # ML-predicted revenue in millions USD
+    prediction_confidence: Optional[str] = None  # Confidence level: High, Medium, Low
+    prediction_confidence_lower: Optional[float] = None  # Lower bound of confidence interval
+    prediction_confidence_upper: Optional[float] = None  # Upper bound of confidence interval
     is_public: Optional[bool] = False
     stock_exchange: Optional[str] = None
     # PitchBook data
@@ -73,8 +75,10 @@ class InvestmentResponse(BaseModel):
     employee_count: Optional[str] = None
     industry_category: Optional[str] = None  # Comma-separated for backward compatibility
     industries: Optional[List[str]] = []  # Individual industry tags as array
-    predicted_revenue: Optional[float] = None  # ML-predicted revenue in USD
-    prediction_confidence: Optional[float] = None  # Confidence score 0-1
+    predicted_revenue: Optional[float] = None  # ML-predicted revenue in millions USD
+    prediction_confidence: Optional[str] = None  # Confidence level: High, Medium, Low
+    prediction_confidence_lower: Optional[float] = None  # Lower bound of confidence interval
+    prediction_confidence_upper: Optional[float] = None  # Upper bound of confidence interval
     headquarters: Optional[str] = None
     website: Optional[str] = None
     linkedin_url: Optional[str] = None
