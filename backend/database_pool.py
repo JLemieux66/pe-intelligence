@@ -3,6 +3,7 @@ Database connection pooling for improved performance
 """
 import os
 from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 from dotenv import load_dotenv
 
@@ -40,3 +41,25 @@ def create_engine_with_pool():
 
 # Global engine instance
 engine = create_engine_with_pool()
+
+# Session factory for creating database sessions
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def get_db():
+    """
+    Dependency function for FastAPI to get database sessions.
+
+    Yields a database session and ensures it's closed after use.
+    Use this with FastAPI's Depends() for dependency injection.
+
+    Example:
+        @app.get("/items")
+        def get_items(db: Session = Depends(get_db)):
+            return db.query(Item).all()
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
