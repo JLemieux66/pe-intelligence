@@ -65,5 +65,8 @@ Thumbs.db
 CHANGES_SUMMARY.md
 IMPROVEMENT_PLAN.md
 
+# Security reports (generated)
+security_report.json
+
 # OpenHands
 .openhands/cache/
