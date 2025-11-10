@@ -84,54 +84,56 @@ class SimilarCompaniesService(BaseService):
         print(f"   Found {len(candidates)} candidate companies (before exit filter)")
         
         # EXCLUDE ALL EXITED COMPANIES EXCEPT IPO - Never show acquired, merged, LBO, buyout, etc.
+        excluded_count = 0
         def has_non_ipo_exit(company):
             """Check if company has any non-IPO exits in its investments"""
+            nonlocal excluded_count
             for inv in company.investments:
                 # Check computed_status - if it's "Exit", verify it was an IPO
                 computed_status = getattr(inv, 'computed_status', None)
                 investor_status = getattr(inv, 'investor_status', None)
-                
+
                 # If investor is "Former", check the exit type
                 if investor_status and 'former' in investor_status.lower():
                     exit_type = getattr(inv, 'exit_type', None)
-                    
+
                     # Former investor with no exit_type or non-IPO exit = exclude
                     if not exit_type or not exit_type.strip():
-                        print(f"   [FILTER] Excluding {company.name} - Former investor with no exit_type")
+                        excluded_count += 1
                         return True
-                    
+
                     exit_lower = exit_type.lower().strip()
                     if exit_lower != 'ipo':
-                        print(f"   [FILTER] Excluding {company.name} - Former investor, exit_type: {exit_type}")
+                        excluded_count += 1
                         return True
-                
+
                 # Also check computed_status = Exit
                 if computed_status and 'exit' in computed_status.lower():
                     exit_type = getattr(inv, 'exit_type', None)
 
                     # If status is Exit but no exit_type specified, exclude it (safer default)
                     if not exit_type or not exit_type.strip():
-                        print(f"   [FILTER] Excluding {company.name} - Exit status with no exit_type specified")
+                        excluded_count += 1
                         return True
-                    
+
                     exit_lower = exit_type.lower().strip()
-                    
+
                     # Only allow IPO exits
                     if exit_lower != 'ipo':
                         # Check for common non-IPO exit patterns
-                        non_ipo_keywords = ['acquisition', 'acquired', 'buyout', 'lbo', 'secondary', 
-                                           'merger', 'merge', 'private equity', 'going private', 
+                        non_ipo_keywords = ['acquisition', 'acquired', 'buyout', 'lbo', 'secondary',
+                                           'merger', 'merge', 'private equity', 'going private',
                                            'management buyout', 'mbo', 'sale', 'sold']
-                        
+
                         # Either matches a keyword OR is an exit that's not IPO
                         is_non_ipo = any(keyword in exit_lower for keyword in non_ipo_keywords)
                         if is_non_ipo or exit_lower not in ['none', 'null', 'unknown']:
-                            print(f"   [FILTER] Excluding {company.name} - exit_type: {exit_type}")
+                            excluded_count += 1
                             return True
             return False
         
         candidates = [c for c in candidates if not has_non_ipo_exit(c)]
-        print(f"   Filtered to {len(candidates)} companies (excluding non-IPO exits)")
+        print(f"   Filtered to {len(candidates)} companies (excluded {excluded_count} non-IPO exits)")
         
         # USER FEEDBACK FILTERING: Exclude companies marked as "not a match"
         from src.models.database_models_v2 import CompanySimilarityFeedback
@@ -205,13 +207,13 @@ class SimilarCompaniesService(BaseService):
         
         comparison_count = 0
         for idx, input_company in enumerate(input_companies):
-            print(f"   Processing input company {idx+1}/{len(input_companies)}: {input_company.name}")
-            
+            # Only log for multiple input companies to reduce noise
+            if len(input_companies) > 1:
+                print(f"   Processing input company {idx+1}/{len(input_companies)}: {input_company.name}")
+
             for candidate in candidates:
                 comparison_count += 1
-                if comparison_count % 50 == 0:
-                    print(f"   Progress: {comparison_count}/{total_comparisons} comparisons...")
-                
+
                 # Skip if already processed (when multiple input companies)
                 if candidate.id in seen_company_ids:
                     continue
