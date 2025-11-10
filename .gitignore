@@ -68,5 +68,9 @@ IMPROVEMENT_PLAN.md
 # Security reports (generated)
 security_report.json
 
+# QA reports (generated)
+qa_report.json
+tests/generated/
+
 # OpenHands
 .openhands/cache/

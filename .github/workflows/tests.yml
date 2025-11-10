@@ -64,6 +64,51 @@ jobs:
         flags: frontend
         name: frontend-coverage
   
+  qa-analysis:
+    name: QA Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: pip install pipenv && pipenv install --dev
+
+    - name: Run QA Sub-Agent
+      run: |
+        python3 backend/services/qa_service.py --json
+      continue-on-error: true
+
+    - name: Upload QA Report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: qa-report
+        path: qa_report.json
+
+    - name: QA Summary
+      if: always()
+      run: |
+        if [ -f qa_report.json ]; then
+          echo "## QA Analysis Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python3 -c "
+import json
+with open('qa_report.json') as f:
+    report = json.load(f)
+    print(f\"**Quality Score:** {report['quality_score']}/100\")
+    print(f\"**Coverage:** {report['coverage']['percentage']:.1f}%\")
+    print(f\"**Tests:** {report['tests']['passed']}/{report['tests']['total']} passing\")
+    print(f\"**Missing Test Files:** {report['coverage']['missing_files']}\")
+    print(f\"**Coverage Gaps:** {report['gaps']['count']}\")
+          " >> $GITHUB_STEP_SUMMARY
+        fi
+
   security:
     name: Security Scanning
     runs-on: ubuntu-latest
