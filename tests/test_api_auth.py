@@ -75,3 +75,76 @@ class TestLoginEndpoint:
         call_args = mock_create_token.call_args[1]["data"]
         assert call_args["sub"] == "user@test.com"
         assert call_args["role"] == "admin"
+
+    def test_login_empty_email(self, client):
+        """Test login with empty email"""
+        response = client.post(
+            "/api/auth/login",
+            json={"email": "", "password": "password"}
+        )
+
+        assert response.status_code in [401, 422]
+
+    def test_login_empty_password(self, client):
+        """Test login with empty password"""
+        response = client.post(
+            "/api/auth/login",
+            json={"email": "admin@test.com", "password": ""}
+        )
+
+        assert response.status_code in [401, 422]
+
+    def test_login_missing_email(self, client):
+        """Test login with missing email field"""
+        response = client.post(
+            "/api/auth/login",
+            json={"password": "password"}
+        )
+
+        assert response.status_code == 422
+
+    @patch('backend.api.auth.authenticate_admin')
+    def test_login_authentication_exception(self, mock_auth, client):
+        """Test login when authentication raises exception"""
+        mock_auth.side_effect = Exception("Database error")
+
+        response = client.post(
+            "/api/auth/login",
+            json={"email": "admin@test.com", "password": "password"}
+        )
+
+        assert response.status_code == 500
+
+    def test_login_returns_bearer_token_type(self, client):
+        """Test that login response includes bearer token type"""
+        with patch('backend.api.auth.authenticate_admin') as mock_auth, \
+             patch('backend.api.auth.create_access_token') as mock_token:
+            mock_auth.return_value = {"email": "test@test.com", "role": "admin"}
+            mock_token.return_value = "token123"
+
+            response = client.post(
+                "/api/auth/login",
+                json={"email": "test@test.com", "password": "password"}
+            )
+
+            assert response.status_code == 200
+            assert response.json()["token_type"] == "bearer"
+
+
+class TestAuthEndpointIntegration:
+    """Integration tests for auth endpoints"""
+
+    def test_auth_router_configured(self):
+        """Test that auth router is configured"""
+        from backend.api.auth import router
+
+        assert router.prefix == "/api/auth"
+        assert "authentication" in router.tags
+
+    def test_login_endpoint_registered(self):
+        """Test that login endpoint is registered"""
+        from backend.main import app
+
+        paths = [route.path for route in app.routes]
+
+        assert any("/api/auth/login" in path for path in paths)
