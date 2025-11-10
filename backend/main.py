@@ -28,14 +28,44 @@ app = FastAPI(
 
 # Enable CORS for frontend access
 # Get allowed origins from environment variable or use defaults
-allowed_origins = os.getenv(
+allowed_origins_str = os.getenv(
     "ALLOWED_ORIGINS",
     "http://localhost:5173,http://localhost:3000,https://pe-intelligence.vercel.app"
-).split(",")
+)
+
+# Parse allowed origins, stripping whitespace
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+
+# Determine if we're in production or development
+is_production = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("VERCEL"))
+
+# In development, add localhost and 127.0.0.1 variants
+if not is_production:
+    allowed_origins.extend([
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
+    ])
+
+# Remove duplicates while preserving order
+allowed_origins = list(dict.fromkeys(allowed_origins))
+
+# Allow origin regex for development environments (all-hands.dev)
+allow_origin_regex = None
+if not is_production:
+    allow_origin_regex = r"https://.*\.all-hands\.dev"
+
+print(f"🌐 CORS enabled for origins: {allowed_origins}")
+if allow_origin_regex:
+    print(f"🌐 CORS regex pattern: {allow_origin_regex}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
