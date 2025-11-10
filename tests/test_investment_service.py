@@ -284,6 +284,124 @@ class TestInvestmentService:
         # Query should be returned unchanged
         assert result == mock_query
 
+    def test_apply_filters_country(self, service):
+        """Test applying country filter"""
+        mock_query = Mock()
+        filters = {'country': 'USA, Canada'}
+
+        service.apply_filters(mock_query, filters)
+        mock_query.filter.assert_called()
+
+    def test_apply_filters_industry_sector(self, service):
+        """Test applying industry sector filter"""
+        mock_query = Mock()
+        filters = {'industry_sector': 'Software'}
+
+        service.apply_filters(mock_query, filters)
+        mock_query.filter.assert_called()
+
+    def test_get_investments_full_workflow(self, service, mock_session):
+        """Test complete get_investments workflow"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.offset.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.all.return_value = []
+
+        result = service.get_investments({}, limit=10, offset=0)
+
+        assert result == []
+        assert mock_session.query.called
+
+    def test_get_investment_by_id_success(self, service, mock_session, sample_investment):
+        """Test getting investment by ID"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.first.return_value = sample_investment
+
+        with patch.object(service, 'build_investment_response') as mock_build:
+            mock_build.return_value = Mock()
+            result = service.get_investment_by_id(1)
+
+            assert result is not None
+            mock_build.assert_called_once_with(sample_investment)
+
+    def test_get_investment_by_id_not_found(self, service, mock_session):
+        """Test getting non-existent investment"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.first.return_value = None
+
+        result = service.get_investment_by_id(999)
+        assert result is None
+
+    def test_update_investment_success(self, service, mock_session):
+        """Test updating investment successfully"""
+        mock_query = Mock()
+        mock_investment = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.first.return_value = mock_investment
+
+        update_data = InvestmentUpdate(
+            computed_status="Exit",
+            exit_type="IPO",
+            exit_info="Public offering"
+        )
+
+        result = service.update_investment(1, update_data)
+
+        assert result is True
+        assert mock_investment.computed_status == "Exit"
+        assert mock_investment.exit_type == "IPO"
+        assert mock_investment.exit_info == "Public offering"
+        mock_session.commit.assert_called_once()
+
+    def test_update_investment_not_found_unit(self, service, mock_session):
+        """Test updating non-existent investment (unit test)"""
+        mock_query = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.first.return_value = None
+
+        update_data = InvestmentUpdate(computed_status="Exit")
+        result = service.update_investment(999, update_data)
+
+        assert result is False
+        # Commit should NOT be called
+        mock_session.commit.assert_not_called()
+
+    def test_update_investment_all_fields(self, service, mock_session):
+        """Test updating all possible fields"""
+        mock_query = Mock()
+        mock_investment = Mock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.first.return_value = mock_investment
+
+        update_data = InvestmentUpdate(
+            computed_status="Exit",
+            raw_status="Exited via IPO",
+            exit_type="IPO",
+            exit_info="NYSE listing",
+            exit_year="2023",
+            investment_year="2018"
+        )
+
+        result = service.update_investment(1, update_data)
+
+        assert result is True
+        assert mock_investment.exit_year == "2023"
+        assert mock_investment.investment_year == "2018"
+        assert mock_investment.raw_status == "Exited via IPO"
+
 
 class TestInvestmentServiceIntegration:
     """Integration tests with real database"""
