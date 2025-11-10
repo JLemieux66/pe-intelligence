@@ -43,8 +43,7 @@ class TestFindSimilarCompaniesEndpoint:
         mock_response = SimilarCompaniesResponse(
             input_companies=[],
             matches=[],
-            total_candidates=0,
-            returned_matches=0
+            total_results=0
         )
 
         with patch('backend.api.similar_companies.SimilarCompaniesService') as MockService:
@@ -106,8 +105,7 @@ class TestFindSimilarCompaniesEndpoint:
         mock_response = SimilarCompaniesResponse(
             input_companies=[],
             matches=[],
-            total_candidates=0,
-            returned_matches=0
+            total_results=0
         )
 
         with patch('backend.api.similar_companies.SimilarCompaniesService') as MockService:
