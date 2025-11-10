@@ -284,3 +284,29 @@ async def delete_company(company_id: int):
         if not success:
             raise HTTPException(status_code=404, detail="Company not found")
         return {"message": "Company deleted successfully"}
+
+
+@router.get("/companies/{company_id}/funding-rounds")
+def get_company_funding_rounds(company_id: int, session = Depends(get_session)):
+    """Get funding rounds for a specific company"""
+    from src.models.database_models_v2 import Company, FundingRound
+
+    # Check if company exists
+    company = session.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    # Get funding rounds
+    funding_rounds = session.query(FundingRound).filter(
+        FundingRound.company_id == company_id
+    ).order_by(FundingRound.announced_on.desc()).all()
+
+    # Convert to response format
+    return [{
+        'id': fr.id,
+        'announced_on': fr.announced_on.isoformat() if fr.announced_on else None,
+        'investment_type': fr.investment_type,
+        'money_raised_usd': fr.money_raised_usd,
+        'investor_names': fr.investor_names,
+        'num_investors': fr.num_investors
+    } for fr in funding_rounds]
