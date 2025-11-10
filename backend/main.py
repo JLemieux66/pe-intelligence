@@ -15,6 +15,7 @@ from backend.api.investments import router as investments_router
 from backend.api.companies import router as companies_router
 from backend.api.similar_companies import router as similar_companies_router
 from backend.api.ml_predictions import router as ml_predictions_router
+from backend.api.ml_admin import router as ml_admin_router
 
 # Import security middleware
 from backend.middleware import RateLimitMiddleware
@@ -116,6 +117,7 @@ app.include_router(investments_router)
 app.include_router(companies_router)
 app.include_router(similar_companies_router)
 app.include_router(ml_predictions_router)
+app.include_router(ml_admin_router)
 
 
 if __name__ == "__main__":
