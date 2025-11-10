@@ -22,19 +22,20 @@ async def find_similar_companies(
 ):
     """
     Find similar companies based on input company IDs.
-    
-    Uses AI-powered weighted scoring algorithm across multiple dimensions:
-    - Verticals/Sub-industries (18 points)
-    - Industry tags (8 points) 
-    - Sector (6 points)
-    - Revenue (42 points)
-    - Employee count (13 points)
-    - Total funding (4 points)
-    - Public/private status (4 points)
-    - Geography (4 points)
-    - Funding stage (1 point)
-    
-    Returns ranked list of similar companies with AI-generated reasoning.
+
+    Uses AI-powered weighted scoring algorithm with REVENUE & EMPLOYEE-FIRST prioritization:
+    - Revenue (granular ratio-based): 35 points (35%)
+    - Employee Count (enhanced bands): 25 points (25%)
+    - Verticals/Sub-industries: 20 points (20%)
+    - Industry Category: 12 points (12%)
+    - Funding Stage: 5 points (5%)
+    - Geography: 2 points (2%)
+    - Funding Type: 1 point (1%)
+
+    Revenue and employee count together represent 60% of the total score,
+    ensuring matches are primarily based on company size and scale.
+
+    Returns ranked list of similar companies with rule-based reasoning.
     Requires authentication.
     """
     try:
