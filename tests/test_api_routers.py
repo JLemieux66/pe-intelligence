@@ -499,3 +499,271 @@ class TestQueryParameterValidation:
         response = client.get("/api/companies?offset=10&limit=10")
 
         assert response.status_code == 200
+
+
+class TestAuthRouterErrorHandling:
+    """Additional authentication error handling tests"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_login_malformed_json(self, client):
+        """Test login with malformed JSON"""
+        response = client.post("/api/auth/login",
+                              data="not-valid-json",
+                              headers={"Content-Type": "application/json"})
+
+        assert response.status_code == 422
+
+    def test_login_empty_body(self, client):
+        """Test login with empty request body"""
+        response = client.post("/api/auth/login", json={})
+
+        assert response.status_code == 422
+
+    def test_login_sql_injection_attempt(self, client):
+        """Test login handles SQL injection attempts safely"""
+        with patch('backend.api.auth.authenticate_admin') as mock_auth:
+            mock_auth.return_value = None
+
+            response = client.post("/api/auth/login", json={
+                "email": "admin@example.com' OR '1'='1",
+                "password": "' OR '1'='1"
+            })
+
+            # Should fail authentication, not crash
+            assert response.status_code in [401, 422]
+
+    def test_login_very_long_email(self, client):
+        """Test login with extremely long email"""
+        response = client.post("/api/auth/login", json={
+            "email": "a" * 10000 + "@example.com",
+            "password": "password"
+        })
+
+        # Should handle gracefully
+        assert response.status_code in [401, 422]
+
+
+class TestCompaniesRouterErrorHandling:
+    """Additional companies router error handling"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_get_companies_database_error(self, client):
+        """Test companies endpoint handles database errors"""
+        with patch('backend.api.companies.CompanyService') as mock_service:
+            mock_service.return_value.__enter__.return_value.get_companies.side_effect = Exception("DB Error")
+
+            response = client.get("/api/companies?limit=10")
+
+            # Should return 500 error
+            assert response.status_code == 500
+
+    def test_update_company_invalid_token(self, client):
+        """Test update with malformed token"""
+        response = client.put("/api/companies/1",
+                            json={"name": "Test"},
+                            headers={"Authorization": "InvalidToken"})
+
+        assert response.status_code == 401
+
+    def test_update_company_expired_token(self, client):
+        """Test update with expired token"""
+        with patch('backend.api.companies.verify_admin_token') as mock_verify:
+            from jose import JWTError
+            mock_verify.side_effect = JWTError("Token expired")
+
+            response = client.put("/api/companies/1",
+                                json={"name": "Test"},
+                                headers={"Authorization": "Bearer expired_token"})
+
+            assert response.status_code == 401
+
+    def test_get_company_by_id_database_error(self, client):
+        """Test get company handles database errors"""
+        with patch('backend.api.companies.CompanyService') as mock_service:
+            mock_service.return_value.__enter__.return_value.get_company_by_id.side_effect = Exception("DB Error")
+
+            response = client.get("/api/companies/1")
+
+            assert response.status_code == 500
+
+    def test_delete_company_not_found(self, client):
+        """Test deleting non-existent company"""
+        with patch('backend.api.companies.verify_admin_token') as mock_verify:
+            with patch('backend.api.companies.CompanyService') as mock_service:
+                mock_verify.return_value = {"email": "admin@example.com", "role": "admin"}
+                mock_service_instance = Mock()
+                mock_service.return_value.__enter__.return_value = mock_service_instance
+                mock_service_instance.delete_company.return_value = False
+
+                response = client.delete("/api/companies/999999",
+                                       headers={"Authorization": "Bearer fake_token"})
+
+                assert response.status_code == 404
+
+    def test_update_company_not_found(self, client):
+        """Test updating non-existent company"""
+        with patch('backend.api.companies.verify_admin_token') as mock_verify:
+            with patch('backend.api.companies.CompanyService') as mock_service:
+                mock_verify.return_value = {"email": "admin@example.com", "role": "admin"}
+                mock_service_instance = Mock()
+                mock_service.return_value.__enter__.return_value = mock_service_instance
+                mock_service_instance.update_company.return_value = False
+
+                response = client.put("/api/companies/999999",
+                                    json={"name": "Test"},
+                                    headers={"Authorization": "Bearer fake_token"})
+
+                assert response.status_code == 404
+
+
+class TestInvestmentsRouterErrorHandling:
+    """Additional investments router error handling"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_get_investments_database_error(self, client):
+        """Test investments endpoint handles database errors"""
+        with patch('backend.api.investments.InvestmentService') as mock_service:
+            mock_service.return_value.__enter__.return_value.get_investments.side_effect = Exception("DB Error")
+
+            response = client.get("/api/investments?limit=10")
+
+            assert response.status_code == 500
+
+    def test_update_investment_not_found(self, client):
+        """Test updating non-existent investment"""
+        with patch('backend.api.investments.verify_admin_token') as mock_verify:
+            with patch('backend.api.investments.InvestmentService') as mock_service:
+                mock_verify.return_value = {"email": "admin@example.com", "role": "admin"}
+                mock_service_instance = Mock()
+                mock_service.return_value.__enter__.return_value = mock_service_instance
+                mock_service_instance.update_investment.return_value = False
+
+                response = client.put("/api/investments/999999",
+                                    json={"computed_status": "Exit"},
+                                    headers={"Authorization": "Bearer fake_token"})
+
+                assert response.status_code == 404
+
+    def test_update_investment_invalid_status(self, client):
+        """Test updating investment with invalid status"""
+        with patch('backend.api.investments.verify_admin_token') as mock_verify:
+            mock_verify.return_value = {"email": "admin@example.com", "role": "admin"}
+
+            response = client.put("/api/investments/1",
+                                json={"computed_status": "InvalidStatus"},
+                                headers={"Authorization": "Bearer fake_token"})
+
+            # Should either validate or accept
+            assert response.status_code in [200, 400, 404, 422]
+
+
+class TestPEFirmsRouterErrorHandling:
+    """Additional PE firms router error handling"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_get_pe_firms_database_error(self, client):
+        """Test PE firms endpoint handles database errors"""
+        with patch('backend.api.pe_firms.PEFirmService') as mock_service:
+            mock_service.return_value.__enter__.return_value.get_pe_firms.side_effect = Exception("DB Error")
+
+            response = client.get("/api/pe-firms")
+
+            assert response.status_code == 500
+
+
+class TestStatsRouterErrorHandling:
+    """Additional stats router error handling"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_get_stats_database_error(self, client):
+        """Test stats endpoint handles database errors"""
+        with patch('backend.api.stats.StatsService') as mock_service:
+            mock_service.return_value.__enter__.return_value.get_stats.side_effect = Exception("DB Error")
+
+            response = client.get("/api/stats")
+
+            assert response.status_code == 500
+
+
+class TestMetadataRouterErrorHandling:
+    """Additional metadata router error handling"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_get_pe_firms_metadata_database_error(self, client):
+        """Test PE firms metadata handles database errors"""
+        with patch('backend.api.metadata.MetadataService') as mock_service:
+            mock_service.return_value.__enter__.return_value.get_pe_firms_list.side_effect = Exception("DB Error")
+
+            response = client.get("/api/metadata/pe-firms")
+
+            assert response.status_code == 500
+
+    def test_get_locations_database_error(self, client):
+        """Test locations metadata handles database errors"""
+        with patch('backend.api.metadata.MetadataService') as mock_service:
+            mock_service.return_value.__enter__.return_value.get_locations.side_effect = Exception("DB Error")
+
+            response = client.get("/api/metadata/locations")
+
+            assert response.status_code == 500
+
+    def test_get_industries_database_error(self, client):
+        """Test industries metadata handles database errors"""
+        with patch('backend.api.metadata.MetadataService') as mock_service:
+            mock_service.return_value.__enter__.return_value.get_industries.side_effect = Exception("DB Error")
+
+            response = client.get("/api/metadata/industries")
+
+            assert response.status_code == 500
+
+
+class TestSimilarCompaniesRouterErrorHandling:
+    """Additional similar companies router error handling"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_find_similar_companies_database_error(self, client):
+        """Test similar companies handles database errors"""
+        with patch('backend.api.similar_companies.SimilarCompaniesService') as mock_service:
+            mock_service.return_value.__enter__.return_value.find_similar_companies.side_effect = Exception("DB Error")
+
+            response = client.post("/api/similar-companies", json={
+                "company_ids": [1, 2, 3],
+                "limit": 10,
+                "min_score": 60.0
+            })
+
+            assert response.status_code == 500
+
+    def test_find_similar_companies_value_error(self, client):
+        """Test similar companies handles value errors"""
+        with patch('backend.api.similar_companies.SimilarCompaniesService') as mock_service:
+            mock_service.return_value.__enter__.return_value.find_similar_companies.side_effect = ValueError("No companies found")
+
+            response = client.post("/api/similar-companies", json={
+                "company_ids": [999999],
+                "limit": 10,
+                "min_score": 60.0
+            })
+
+            assert response.status_code in [400, 404]
