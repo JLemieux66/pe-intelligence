@@ -136,6 +136,11 @@ class CompanyService(BaseService):
         if company.prediction_confidence is None:
             return None
 
+        # Handle NaN values
+        import math
+        if math.isnan(company.prediction_confidence):
+            return None
+
         confidence = company.prediction_confidence
         if confidence >= 0.7:
             return "High"

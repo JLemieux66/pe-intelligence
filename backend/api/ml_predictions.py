@@ -407,6 +407,14 @@ async def enrich_company_with_prediction(
         # Get full prediction details
         prediction = enrichment_service.predict_revenue(company)
 
+        # Format features completeness, handling NaN values
+        features_completeness_display = None
+        if prediction and prediction.get('features_completeness') is not None:
+            import math
+            completeness = prediction['features_completeness']
+            if not math.isnan(completeness):
+                features_completeness_display = f"{completeness * 100:.1f}%"
+
         return {
             "company_id": company.id,
             "company_name": company.name,
@@ -416,7 +424,7 @@ async def enrich_company_with_prediction(
                 "lower": prediction['confidence_lower'] if prediction else None,
                 "upper": prediction['confidence_upper'] if prediction else None
             },
-            "features_completeness": f"{prediction['features_completeness'] * 100:.1f}%" if prediction else None,
+            "features_completeness": features_completeness_display,
             "updated": True
         }
 
