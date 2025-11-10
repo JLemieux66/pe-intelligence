@@ -48,7 +48,8 @@ class FeatureEngineer:
             df['is_mature_company'] = (df['company_age_years'] >= 15).astype(int)
 
         if 'months_since_last_funding' in df.columns:
-            df['funding_recency_score'] = 1 / (df['months_since_last_funding'].fillna(60) + 1)
+            filled_months = df['months_since_last_funding'].fillna(60)
+            df['funding_recency_score'] = 1 / (filled_months + 1)
 
         # 5. PE investor features
         if 'num_pe_investors' in df.columns:
@@ -116,12 +117,14 @@ class FeatureEngineer:
                     self.__dict__[f'{col}_median'] = median_val
                 else:
                     median_val = self.__dict__.get(f'{col}_median', df[col].median())
-                df[col] = df[col].fillna(median_val)
+                filled_values = df[col].fillna(median_val)
+                df[col] = filled_values
 
         # Strategy 3: Fill categorical with 'Unknown'
         categorical_cols = df.select_dtypes(include=['object']).columns
         for col in categorical_cols:
-            df[col] = df[col].fillna('Unknown')
+            filled_values = df[col].fillna('Unknown')
+            df[col] = filled_values.infer_objects(copy=False)
 
         return df
 
@@ -266,9 +269,24 @@ class FeatureEngineer:
 
     def transform(self, df: pd.DataFrame, target: str = 'revenue_usd_millions') -> pd.DataFrame:
         """Transform new data using fitted pipeline"""
+        df = df.copy()
         df = self.create_derived_features(df)
         df = self.handle_missing_values(df, fit=False)
         df = self.encode_categorical_features(df, fit=False)
+
+        # Drop the original categorical columns before selecting features
+        categorical_base_cols = [
+            'pitchbook_primary_industry_sector',
+            'pitchbook_primary_industry_group',
+            'pitchbook_hq_country',
+            'latest_funding_type',
+            'crunchbase_revenue_range',
+            'company_size_category'
+        ]
+        cols_to_drop = [col for col in categorical_base_cols if col in df.columns]
+        if cols_to_drop:
+            df = df.drop(columns=cols_to_drop)
+
         df = self.select_features(df, target)
         df = self.scale_features(df, target, fit=False)
         return df
