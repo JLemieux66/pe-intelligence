@@ -166,9 +166,9 @@ class MLEnrichmentService:
         if not prediction:
             return company
 
-        # Update company with prediction
-        company.predicted_revenue = prediction['predicted_revenue']
-        company.prediction_confidence = prediction['features_completeness']  # Store as float for now
+        # Update company with prediction - convert numpy types to Python floats for PostgreSQL
+        company.predicted_revenue = float(prediction['predicted_revenue'])
+        company.prediction_confidence = float(prediction['features_completeness'])  # Store as float for now
 
         # Note: We'll need to add confidence interval fields to the database model
         # For now, we'll return them in the API response
@@ -228,8 +228,9 @@ class MLEnrichmentService:
             for company in companies:
                 prediction = self.predict_revenue(company)
                 if prediction:
-                    company.predicted_revenue = prediction['predicted_revenue']
-                    company.prediction_confidence = prediction['features_completeness']
+                    # Convert numpy types to Python floats for PostgreSQL
+                    company.predicted_revenue = float(prediction['predicted_revenue'])
+                    company.prediction_confidence = float(prediction['features_completeness'])
                     enriched += 1
 
             db.commit()
