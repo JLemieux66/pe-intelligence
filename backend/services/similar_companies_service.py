@@ -39,12 +39,13 @@ class SimilarCompaniesService(BaseService):
         """
         Find similar companies based on input company IDs.
         Uses weighted scoring algorithm across multiple dimensions.
+        OPTIMIZED: All filtering done in SQL for performance.
         """
         print(f"\n=== Similar Companies Request ===")
         print(f"Company IDs: {request.company_ids}")
         print(f"Min Score: {request.min_score}")
         print(f"Limit: {request.limit}")
-        
+
         # 1. Get input companies with eager loading
         print("[1/6] Fetching input companies...")
         input_companies = self.session.query(Company).options(
@@ -53,149 +54,124 @@ class SimilarCompaniesService(BaseService):
         ).filter(
             Company.id.in_(request.company_ids)
         ).all()
-        
+
         if not input_companies:
             raise ValueError("No companies found with provided IDs")
-        
+
         print(f"   Found {len(input_companies)} input companies")
-        
-        # 2. Get all potential match candidates with eager loading
+
+        # 2. Get all potential match candidates with eager loading and SQL-based filtering
         print("[2/6] Fetching candidate companies...")
+        from src.models.database_models_v2 import CompanySimilarityFeedback
+        from sqlalchemy import and_, not_, case
+
         query = self.session.query(Company).options(
             joinedload(Company.investments).joinedload(CompanyPEInvestment.pe_firm),
             joinedload(Company.tags)  # Load industry tags for similarity matching
         ).filter(
             ~Company.id.in_(request.company_ids)  # Exclude input companies
         )
-        
-        # Apply filters if provided
+
+        # Apply user-provided filters
         if request.filters:
             if 'country' in request.filters:
                 query = query.filter(Company.country == request.filters['country'])
             if 'sector' in request.filters:
                 query = query.filter(Company.primary_industry_sector == request.filters['sector'])
-        
-        # Get all candidates first for advanced filtering
+
+        # OPTIMIZATION: Revenue-based pre-filtering in SQL
+        if input_companies[0].current_revenue_usd:
+            input_revenue = input_companies[0].current_revenue_usd
+            min_revenue = input_revenue * 0.1
+            max_revenue = input_revenue * 10.0
+            query = query.filter(
+                Company.current_revenue_usd != None,
+                Company.current_revenue_usd >= min_revenue,
+                Company.current_revenue_usd <= max_revenue
+            )
+            print(f"   Revenue filter applied in SQL: ${input_revenue:.1f}M (10% to 10x)")
+
+        # OPTIMIZATION: User feedback filtering in SQL - exclude "not_a_match" companies
+        negative_feedback_subquery = self.session.query(
+            CompanySimilarityFeedback.match_company_id
+        ).filter(
+            CompanySimilarityFeedback.input_company_id.in_(request.company_ids),
+            CompanySimilarityFeedback.feedback_type == 'not_a_match'
+        ).subquery()
+
+        query = query.filter(
+            ~Company.id.in_(negative_feedback_subquery)
+        )
+
+        # OPTIMIZATION: Exit filtering in SQL - exclude non-IPO exits
+        # Only include companies where ALL investments are either:
+        # 1. Active (investor_status NOT like '%former%')
+        # 2. OR Former investor with IPO exit only
+        # We use a subquery to find companies with problematic exits
+        problematic_exits_subquery = self.session.query(
+            CompanyPEInvestment.company_id
+        ).filter(
+            or_(
+                # Former investor with no exit type
+                and_(
+                    CompanyPEInvestment.investor_status.ilike('%former%'),
+                    or_(
+                        CompanyPEInvestment.exit_type == None,
+                        CompanyPEInvestment.exit_type == ''
+                    )
+                ),
+                # Former investor with non-IPO exit
+                and_(
+                    CompanyPEInvestment.investor_status.ilike('%former%'),
+                    CompanyPEInvestment.exit_type != None,
+                    CompanyPEInvestment.exit_type != '',
+                    ~CompanyPEInvestment.exit_type.ilike('ipo')
+                ),
+                # Computed status is Exit with no exit_type
+                and_(
+                    CompanyPEInvestment.computed_status.ilike('%exit%'),
+                    or_(
+                        CompanyPEInvestment.exit_type == None,
+                        CompanyPEInvestment.exit_type == ''
+                    )
+                ),
+                # Computed status is Exit with non-IPO exit type
+                and_(
+                    CompanyPEInvestment.computed_status.ilike('%exit%'),
+                    CompanyPEInvestment.exit_type != None,
+                    CompanyPEInvestment.exit_type != '',
+                    ~CompanyPEInvestment.exit_type.ilike('ipo'),
+                    or_(
+                        CompanyPEInvestment.exit_type.ilike('%acquisition%'),
+                        CompanyPEInvestment.exit_type.ilike('%acquired%'),
+                        CompanyPEInvestment.exit_type.ilike('%buyout%'),
+                        CompanyPEInvestment.exit_type.ilike('%lbo%'),
+                        CompanyPEInvestment.exit_type.ilike('%secondary%'),
+                        CompanyPEInvestment.exit_type.ilike('%merger%'),
+                        CompanyPEInvestment.exit_type.ilike('%merge%'),
+                        CompanyPEInvestment.exit_type.ilike('%private equity%'),
+                        CompanyPEInvestment.exit_type.ilike('%going private%'),
+                        CompanyPEInvestment.exit_type.ilike('%management buyout%'),
+                        CompanyPEInvestment.exit_type.ilike('%mbo%'),
+                        CompanyPEInvestment.exit_type.ilike('%sale%'),
+                        CompanyPEInvestment.exit_type.ilike('%sold%')
+                    )
+                )
+            )
+        ).distinct().subquery()
+
+        query = query.filter(
+            ~Company.id.in_(problematic_exits_subquery)
+        )
+
+        # Get candidates with limit to prevent timeout
+        max_candidates = 100
         candidates = query.order_by(
             desc(Company.current_revenue_usd),
             desc(Company.last_known_valuation_usd)
-        ).all()
-        
-        print(f"   Found {len(candidates)} candidate companies (before exit filter)")
-        
-        # EXCLUDE ALL EXITED COMPANIES EXCEPT IPO - Never show acquired, merged, LBO, buyout, etc.
-        excluded_count = 0
-        def has_non_ipo_exit(company):
-            """Check if company has any non-IPO exits in its investments"""
-            nonlocal excluded_count
-            for inv in company.investments:
-                # Check computed_status - if it's "Exit", verify it was an IPO
-                computed_status = getattr(inv, 'computed_status', None)
-                investor_status = getattr(inv, 'investor_status', None)
+        ).limit(max_candidates).all()
 
-                # If investor is "Former", check the exit type
-                if investor_status and 'former' in investor_status.lower():
-                    exit_type = getattr(inv, 'exit_type', None)
-
-                    # Former investor with no exit_type or non-IPO exit = exclude
-                    if not exit_type or not exit_type.strip():
-                        excluded_count += 1
-                        return True
-
-                    exit_lower = exit_type.lower().strip()
-                    if exit_lower != 'ipo':
-                        excluded_count += 1
-                        return True
-
-                # Also check computed_status = Exit
-                if computed_status and 'exit' in computed_status.lower():
-                    exit_type = getattr(inv, 'exit_type', None)
-
-                    # If status is Exit but no exit_type specified, exclude it (safer default)
-                    if not exit_type or not exit_type.strip():
-                        excluded_count += 1
-                        return True
-
-                    exit_lower = exit_type.lower().strip()
-
-                    # Only allow IPO exits
-                    if exit_lower != 'ipo':
-                        # Check for common non-IPO exit patterns
-                        non_ipo_keywords = ['acquisition', 'acquired', 'buyout', 'lbo', 'secondary',
-                                           'merger', 'merge', 'private equity', 'going private',
-                                           'management buyout', 'mbo', 'sale', 'sold']
-
-                        # Either matches a keyword OR is an exit that's not IPO
-                        is_non_ipo = any(keyword in exit_lower for keyword in non_ipo_keywords)
-                        if is_non_ipo or exit_lower not in ['none', 'null', 'unknown']:
-                            excluded_count += 1
-                            return True
-            return False
-        
-        candidates = [c for c in candidates if not has_non_ipo_exit(c)]
-        print(f"   Filtered to {len(candidates)} companies (excluded {excluded_count} non-IPO exits)")
-        
-        # USER FEEDBACK FILTERING: Exclude companies marked as "not a match"
-        from src.models.database_models_v2 import CompanySimilarityFeedback
-        
-        # Get all negative feedback for input companies
-        negative_feedback_query = self.session.query(CompanySimilarityFeedback).filter(
-            CompanySimilarityFeedback.input_company_id.in_([c.id for c in input_companies]),
-            CompanySimilarityFeedback.feedback_type == 'not_a_match'
-        )
-        
-        excluded_company_ids = set()
-        for feedback in negative_feedback_query.all():
-            excluded_company_ids.add(feedback.match_company_id)
-        
-        if excluded_company_ids:
-            before_feedback_filter = len(candidates)
-            candidates = [c for c in candidates if c.id not in excluded_company_ids]
-            print(f"   Feedback filter: Excluded {before_feedback_filter - len(candidates)} companies marked as 'not a match'")
-        
-        # REVENUE-BASED PRE-FILTERING: Only compare companies in reasonable revenue range
-        # This dramatically improves result quality and speed
-        if input_companies[0].current_revenue_usd:
-            input_revenue = input_companies[0].current_revenue_usd
-            # Keep companies within 0.1x to 10x revenue range (covers 100x total range)
-            # More generous range to capture edge cases while still filtering outliers
-            min_revenue = input_revenue * 0.1
-            max_revenue = input_revenue * 10.0
-
-            before_revenue_filter = len(candidates)
-            candidates = [
-                c for c in candidates
-                if c.current_revenue_usd and min_revenue <= c.current_revenue_usd <= max_revenue
-            ]
-            print(f"   Revenue filter: ${input_revenue:.1f}M (10% to 10x) = {len(candidates)} companies (was {before_revenue_filter})")
-        
-        # AGGRESSIVE FILTERING: Limit to max 100 candidates to prevent timeout
-        max_candidates = 100
-        
-        if len(candidates) > max_candidates:
-            print(f"   WARNING: Too many candidates ({len(candidates)}), applying aggressive filtering...")
-            
-            # Strategy 1: Filter by same sector first
-            if input_companies[0].primary_industry_sector:
-                same_sector = [c for c in candidates 
-                             if c.primary_industry_sector == input_companies[0].primary_industry_sector]
-                
-                if len(same_sector) >= 20:
-                    # Take top N from same sector
-                    candidates = same_sector[:max_candidates]
-                    print(f"   Filtered to {len(candidates)} companies in same sector")
-                else:
-                    # Mix same sector + others
-                    other_companies = [c for c in candidates 
-                                     if c.primary_industry_sector != input_companies[0].primary_industry_sector]
-                    candidates = same_sector + other_companies[:max_candidates - len(same_sector)]
-                    print(f"   Mixed filter: {len(same_sector)} same sector + {len(candidates) - len(same_sector)} others")
-            else:
-                # No sector info, just take first N
-                candidates = candidates[:max_candidates]
-                print(f"   Limited to first {len(candidates)} companies")
-        
-        print(f"   Found {len(candidates)} candidate companies")
+        print(f"   Found {len(candidates)} candidate companies (all SQL filtering applied)")
         
         # 3. Calculate similarity scores for all candidates against all input companies
         print("[3/6] Calculating similarity scores...")
