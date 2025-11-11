@@ -95,7 +95,21 @@ jobs:
         if [ -f qa_report.json ]; then
           echo "## QA Analysis Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          python3 -c 'import json; report = json.load(open("qa_report.json")); print(f"**Quality Score:** {report[\"quality_score\"]}/100\n**Coverage:** {report[\"coverage\"][\"percentage\"]:.1f}%\n**Tests:** {report[\"tests\"][\"passed\"]}/{report[\"tests\"][\"total\"]} passing\n**Missing Test Files:** {report[\"coverage\"][\"missing_files\"]}\n**Coverage Gaps:** {report[\"gaps\"][\"count\"]}")' >> $GITHUB_STEP_SUMMARY
+          python3 -c '
+import json
+report = json.load(open("qa_report.json"))
+qs = report["quality_score"]
+cp = report["coverage"]["percentage"]
+tp = report["tests"]["passed"]
+tt = report["tests"]["total"]
+mf = report["coverage"]["missing_files"]
+gc = report["gaps"]["count"]
+print(f"**Quality Score:** {qs}/100")
+print(f"**Coverage:** {cp:.1f}%")
+print(f"**Tests:** {tp}/{tt} passing")
+print(f"**Missing Test Files:** {mf}")
+print(f"**Coverage Gaps:** {gc}")
+' >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Send QA Report Email
@@ -141,7 +155,23 @@ jobs:
         if [ -f security_report.json ]; then
           echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          python3 -c 'import json; report = json.load(open("security_report.json")); summary = report["summary"]; print(f"**Security Score:** {summary[\"security_score\"]}/100\n**Total Issues:** {summary[\"total_issues\"]}\n- Critical: {summary[\"critical\"]}\n- High: {summary[\"high\"]}\n- Medium: {summary[\"medium\"]}\n- Low: {summary[\"low\"]}")' >> $GITHUB_STEP_SUMMARY
+          python3 -c '
+import json
+report = json.load(open("security_report.json"))
+summary = report["summary"]
+ss = summary["security_score"]
+ti = summary["total_issues"]
+crit = summary["critical"]
+high = summary["high"]
+med = summary["medium"]
+low = summary["low"]
+print(f"**Security Score:** {ss}/100")
+print(f"**Total Issues:** {ti}")
+print(f"- Critical: {crit}")
+print(f"- High: {high}")
+print(f"- Medium: {med}")
+print(f"- Low: {low}")
+' >> $GITHUB_STEP_SUMMARY
         fi
 
   lint:
