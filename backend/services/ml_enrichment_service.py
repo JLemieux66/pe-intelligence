@@ -103,7 +103,9 @@ class MLEnrichmentService:
             try:
                 df_processed = self._feature_engineer.transform(df, target='revenue_usd_millions')
             except Exception as e:
-                print(f"Feature transformation error: {e}")
+                # Only log errors, not every transformation attempt
+                import logging
+                logging.error(f"Feature transformation error for company {company.id}: {e}")
                 return None
 
             # Make prediction
@@ -134,7 +136,9 @@ class MLEnrichmentService:
             }
 
         except Exception as e:
-            print(f"Prediction error for company {company.id}: {e}")
+            # Only log errors, don't print for every prediction
+            import logging
+            logging.error(f"Prediction error for company {company.id}: {e}")
             return None
 
     def enrich_company(self, db: Session, company_id: int, force_update: bool = False) -> Optional[Company]:
@@ -213,7 +217,9 @@ class MLEnrichmentService:
         total = query.count()
         enriched = 0
 
-        print(f"Enriching {total} companies with ML predictions...")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Enriching {total} companies with ML predictions")
 
         # Process in batches
         for offset in range(0, total, batch_size):
@@ -227,7 +233,9 @@ class MLEnrichmentService:
                     enriched += 1
 
             db.commit()
-            print(f"Progress: {min(offset + batch_size, total)}/{total} companies processed")
+            # Only log every 10 batches to reduce log spam
+            if offset % (batch_size * 10) == 0:
+                logger.info(f"Progress: {min(offset + batch_size, total)}/{total} companies processed")
 
-        print(f"Enrichment complete! {enriched} companies enriched with ML predictions")
+        logger.info(f"Enrichment complete! {enriched} companies enriched with ML predictions")
         return enriched

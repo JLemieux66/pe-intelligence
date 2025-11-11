@@ -18,7 +18,7 @@ from data_preprocessing import FeatureEngineer
 from backend.database_pool import get_db
 from backend.services.ml_enrichment_service import MLEnrichmentService
 
-router = APIRouter(prefix="/ml", tags=["ML Predictions"])
+router = APIRouter(prefix="/api/ml", tags=["ML Predictions"])
 
 # Global variables for loaded models
 _feature_engineer: Optional[FeatureEngineer] = None
