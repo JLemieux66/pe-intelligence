@@ -11,8 +11,8 @@ import json
 from pathlib import Path
 import warnings
 
-# Suppress pandas FutureWarning about fillna downcasting
-# We explicitly call .infer_objects(copy=False) after fillna operations
+# Suppress any remaining pandas warnings
+# We use explicit dtype conversions (e.g., .astype('float64')) after fillna to avoid downcasting warnings
 warnings.filterwarnings('ignore', category=FutureWarning, module='pandas')
 
 
@@ -43,8 +43,8 @@ class FeatureEngineer:
 
         # 3. Valuation-based features
         if 'pitchbook_valuation_usd_millions' in df.columns:
-            df['log_valuation'] = np.log1p(df['pitchbook_valuation_usd_millions'].fillna(0).infer_objects(copy=False))
-            df['valuation_per_employee'] = df['pitchbook_valuation_usd_millions'] / (df['employee_count_pitchbook'].fillna(1) + 1)
+            df['log_valuation'] = np.log1p(df['pitchbook_valuation_usd_millions'].fillna(0).astype('float64'))
+            df['valuation_per_employee'] = df['pitchbook_valuation_usd_millions'] / (df['employee_count_pitchbook'].fillna(1).astype('float64') + 1)
 
         # 4. Age and timing features
         if 'company_age_years' in df.columns:
@@ -53,7 +53,7 @@ class FeatureEngineer:
             df['is_mature_company'] = (df['company_age_years'] >= 15).astype(int)
 
         if 'months_since_last_funding' in df.columns:
-            filled_months = df['months_since_last_funding'].fillna(60).infer_objects(copy=False)
+            filled_months = df['months_since_last_funding'].fillna(60).astype('float64')
             df['funding_recency_score'] = 1 / (filled_months + 1)
 
         # 5. PE investor features
@@ -92,7 +92,7 @@ class FeatureEngineer:
             df['employees_x_stage'] = df['employee_count_pitchbook'] * df['funding_stage_encoded']
 
         if 'pitchbook_valuation_usd_millions' in df.columns and 'company_age_years' in df.columns:
-            df['valuation_growth_rate'] = df['pitchbook_valuation_usd_millions'] / (df['company_age_years'].fillna(1).infer_objects(copy=False) + 1)
+            df['valuation_growth_rate'] = df['pitchbook_valuation_usd_millions'] / (df['company_age_years'].fillna(1).astype('float64') + 1)
 
         return df
 
@@ -122,8 +122,7 @@ class FeatureEngineer:
                     self.__dict__[f'{col}_median'] = median_val
                 else:
                     median_val = self.__dict__.get(f'{col}_median', df[col].median())
-                filled_values = df[col].fillna(median_val).infer_objects(copy=False)
-                df[col] = filled_values
+                df[col] = df[col].fillna(median_val).astype('float64')
 
         # Strategy 3: Fill categorical with 'Unknown' - only for columns we'll encode
         # Match the columns in encode_categorical_features to avoid 'Unknown' in unencoded columns
@@ -137,7 +136,7 @@ class FeatureEngineer:
         ]
         for col in categorical_cols_to_fill:
             if col in df.columns:
-                df[col] = df[col].fillna('Unknown').infer_objects(copy=False)
+                df[col] = df[col].fillna('Unknown').astype(str)
 
         return df
 
