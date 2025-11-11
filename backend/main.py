@@ -50,6 +50,10 @@ if not is_production:
         "http://127.0.0.1:8000",
     ])
 
+# Always ensure Vercel frontend is allowed (in case env detection fails)
+if "https://pe-intelligence.vercel.app" not in allowed_origins:
+    allowed_origins.append("https://pe-intelligence.vercel.app")
+
 # Remove duplicates while preserving order
 allowed_origins = list(dict.fromkeys(allowed_origins))
 
@@ -59,6 +63,7 @@ if not is_production:
     allow_origin_regex = r"https://.*\.all-hands\.dev"
 
 print(f"🌐 CORS enabled for origins: {allowed_origins}")
+print(f"🌐 Production mode: {is_production}")
 if allow_origin_regex:
     print(f"🌐 CORS regex pattern: {allow_origin_regex}")
 
@@ -67,9 +72,10 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["X-Total-Count", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
+    max_age=3600,
 )
 
 # Add rate limiting middleware for security (disabled in development)
