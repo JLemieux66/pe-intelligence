@@ -15,6 +15,10 @@ import warnings
 # This eliminates FutureWarnings about downcasting object dtype arrays
 pd.set_option('future.no_silent_downcasting', True)
 
+# Suppress NumPy warnings about mean/median of empty slices
+# These can occur when processing rows with all NaN values
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='numpy')
+
 
 class FeatureEngineer:
     """Advanced feature engineering for revenue prediction"""
