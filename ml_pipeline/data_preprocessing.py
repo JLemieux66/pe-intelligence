@@ -9,6 +9,11 @@ from typing import Tuple, List, Dict, Any
 import pickle
 import json
 from pathlib import Path
+import warnings
+
+# Suppress pandas FutureWarning about fillna downcasting
+# We explicitly call .infer_objects(copy=False) after fillna operations
+warnings.filterwarnings('ignore', category=FutureWarning, module='pandas')
 
 
 class FeatureEngineer:
@@ -120,11 +125,19 @@ class FeatureEngineer:
                 filled_values = df[col].fillna(median_val).infer_objects(copy=False)
                 df[col] = filled_values
 
-        # Strategy 3: Fill categorical with 'Unknown'
-        categorical_cols = df.select_dtypes(include=['object']).columns
-        for col in categorical_cols:
-            filled_values = df[col].fillna('Unknown')
-            df[col] = filled_values.infer_objects(copy=False)
+        # Strategy 3: Fill categorical with 'Unknown' - only for columns we'll encode
+        # Match the columns in encode_categorical_features to avoid 'Unknown' in unencoded columns
+        categorical_cols_to_fill = [
+            'pitchbook_primary_industry_sector',
+            'pitchbook_primary_industry_group',
+            'pitchbook_hq_country',
+            'latest_funding_type',
+            'crunchbase_revenue_range',
+            'company_size_category'
+        ]
+        for col in categorical_cols_to_fill:
+            if col in df.columns:
+                df[col] = df[col].fillna('Unknown').infer_objects(copy=False)
 
         return df
 
