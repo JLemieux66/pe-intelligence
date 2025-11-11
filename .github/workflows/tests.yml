@@ -95,16 +95,7 @@ jobs:
         if [ -f qa_report.json ]; then
           echo "## QA Analysis Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          python3 -c "
-import json
-with open('qa_report.json') as f:
-    report = json.load(f)
-    print(f\"**Quality Score:** {report['quality_score']}/100\")
-    print(f\"**Coverage:** {report['coverage']['percentage']:.1f}%\")
-    print(f\"**Tests:** {report['tests']['passed']}/{report['tests']['total']} passing\")
-    print(f\"**Missing Test Files:** {report['coverage']['missing_files']}\")
-    print(f\"**Coverage Gaps:** {report['gaps']['count']}\")
-          " >> $GITHUB_STEP_SUMMARY
+          python3 -c 'import json; report = json.load(open("qa_report.json")); print(f"**Quality Score:** {report[\"quality_score\"]}/100\n**Coverage:** {report[\"coverage\"][\"percentage\"]:.1f}%\n**Tests:** {report[\"tests\"][\"passed\"]}/{report[\"tests\"][\"total\"]} passing\n**Missing Test Files:** {report[\"coverage\"][\"missing_files\"]}\n**Coverage Gaps:** {report[\"gaps\"][\"count\"]}")' >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Send QA Report Email
@@ -150,18 +141,7 @@ with open('qa_report.json') as f:
         if [ -f security_report.json ]; then
           echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          python3 -c "
-import json
-with open('security_report.json') as f:
-    report = json.load(f)
-    summary = report['summary']
-    print(f\"**Security Score:** {summary['security_score']}/100\")
-    print(f\"**Total Issues:** {summary['total_issues']}\")
-    print(f\"- 🔴 Critical: {summary['critical']}\")
-    print(f\"- 🟠 High: {summary['high']}\")
-    print(f\"- 🟡 Medium: {summary['medium']}\")
-    print(f\"- 🟢 Low: {summary['low']}\")
-          " >> $GITHUB_STEP_SUMMARY
+          python3 -c 'import json; report = json.load(open("security_report.json")); summary = report["summary"]; print(f"**Security Score:** {summary[\"security_score\"]}/100\n**Total Issues:** {summary[\"total_issues\"]}\n- Critical: {summary[\"critical\"]}\n- High: {summary[\"high\"]}\n- Medium: {summary[\"medium\"]}\n- Low: {summary[\"low\"]}")' >> $GITHUB_STEP_SUMMARY
         fi
 
   lint:
