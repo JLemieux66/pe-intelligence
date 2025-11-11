@@ -20,7 +20,8 @@ class CompanyResponse(BaseModel):
     description: Optional[str] = None
     # Enrichment data
     revenue_range: Optional[str] = None
-    employee_count: Optional[str] = None  # Display value (prefer scraped, fallback to Crunchbase)
+    employee_count: Optional[str] = None  # Display value (prefer PitchBook, fallback to scraped, then Crunchbase)
+    pitchbook_employee_count: Optional[int] = None  # PitchBook exact count
     crunchbase_employee_range: Optional[str] = None  # Crunchbase range (e.g., "501-1,000")
     scraped_employee_count: Optional[int] = None  # LinkedIn exact count
     industry_category: Optional[str] = None
@@ -34,8 +35,8 @@ class CompanyResponse(BaseModel):
     avg_round_size_usd: Optional[int] = None
     total_investors: Optional[int] = None
     # Predictions
-    predicted_revenue: Optional[float] = None  # ML-predicted revenue in millions USD
-    prediction_confidence: Optional[str] = None  # Confidence level: High, Medium, Low
+    predicted_revenue: Optional[float] = None  # ML-predicted revenue in USD (converted from millions in DB)
+    prediction_confidence: Optional[float] = None  # Confidence score 0-1
     prediction_confidence_lower: Optional[float] = None  # Lower bound of confidence interval
     prediction_confidence_upper: Optional[float] = None  # Upper bound of confidence interval
     is_public: Optional[bool] = False
@@ -75,8 +76,8 @@ class InvestmentResponse(BaseModel):
     employee_count: Optional[str] = None
     industry_category: Optional[str] = None  # Comma-separated for backward compatibility
     industries: Optional[List[str]] = []  # Individual industry tags as array
-    predicted_revenue: Optional[float] = None  # ML-predicted revenue in millions USD
-    prediction_confidence: Optional[str] = None  # Confidence level: High, Medium, Low
+    predicted_revenue: Optional[float] = None  # ML-predicted revenue in USD (converted from millions in DB)
+    prediction_confidence: Optional[float] = None  # Confidence score 0-1
     prediction_confidence_lower: Optional[float] = None  # Lower bound of confidence interval
     prediction_confidence_upper: Optional[float] = None  # Upper bound of confidence interval
     headquarters: Optional[str] = None

@@ -168,7 +168,8 @@ class CompanyService(BaseService):
             description=company.description,
             revenue_range=decode_revenue_range(company.revenue_range),
             employee_count=self.get_employee_count_display(company),
-            crunchbase_employee_range=company.crunchbase_employee_count,
+            pitchbook_employee_count=company.employee_count,
+            crunchbase_employee_range=decode_employee_count(company.crunchbase_employee_count) if company.crunchbase_employee_count else None,
             scraped_employee_count=company.projected_employee_count,
             industry_category=company.industry_category,
             industries=industries,
@@ -179,8 +180,8 @@ class CompanyService(BaseService):
             funding_stage_encoded=company.funding_stage_encoded,
             avg_round_size_usd=company.avg_round_size_usd,
             total_investors=company.total_investors,
-            predicted_revenue=company.predicted_revenue,
-            prediction_confidence=self.get_prediction_confidence_display(company),
+            predicted_revenue=company.predicted_revenue,  # Already in millions in DB
+            prediction_confidence=company.prediction_confidence,  # Keep as float 0-1 for frontend
             is_public=company.is_public,
             stock_exchange=company.ipo_exchange,
             investor_name=getattr(company, 'investor_name', None),
@@ -371,7 +372,9 @@ class CompanyService(BaseService):
         if company_update.revenue_range is not None:
             company.revenue_range = company_update.revenue_range
         if company_update.employee_count is not None:
-            company.crunchbase_employee_count = company_update.employee_count
+            company.employee_count = company_update.employee_count
+        if company_update.crunchbase_employee_count is not None:
+            company.crunchbase_employee_count = company_update.crunchbase_employee_count
         if company_update.is_public is not None:
             company.is_public = company_update.is_public
         if company_update.ipo_exchange is not None:

@@ -28,7 +28,7 @@ interface CompanyEditModalProps {
   onClose: () => void;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://peportco-production.up.railway.app/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 export default function CompanyEditModal({ company, investment, onClose }: CompanyEditModalProps) {
   const queryClient = useQueryClient();
@@ -129,13 +129,19 @@ export default function CompanyEditModal({ company, investment, onClose }: Compa
 
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
+      const token = localStorage.getItem('admin_token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
 
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       console.log('Sending PUT request:', {
         url: `${API_BASE_URL}/companies/${company.id}`,
-        data
+        data,
+        hasToken: !!token
       });
 
       const response = await fetch(`${API_BASE_URL}/companies/${company.id}`, {
@@ -213,9 +219,14 @@ export default function CompanyEditModal({ company, investment, onClose }: Compa
 
   const updateInvestmentMutation = useMutation({
     mutationFn: async ({ investmentId, data }: { investmentId: number; data: any }) => {
+      const token = localStorage.getItem('admin_token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
       const response = await fetch(`${API_BASE_URL}/investments/${investmentId}`, {
         method: 'PUT',
@@ -536,6 +547,51 @@ export default function CompanyEditModal({ company, investment, onClose }: Compa
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white text-gray-900 placeholder-gray-400"
                     />
                     <p className="mt-1.5 text-xs text-gray-500">Current: <span className="font-medium">{(company as any).hq_country || 'Not set'}</span></p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Company Metrics Section */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 space-y-4">
+                <h4 className="text-sm font-semibold text-gray-700 flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Key Metrics
+                </h4>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Employee Count */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Employee Count
+                    </label>
+                    <input
+                      type="number"
+                      name="employee_count"
+                      value={formData.employee_count}
+                      onChange={handleChange}
+                      placeholder="150"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white text-gray-900 placeholder-gray-400"
+                    />
+                    <p className="mt-1.5 text-xs text-gray-500">Current: <span className="font-medium">{company.employee_count || 'Not set'}</span></p>
+                  </div>
+
+                  {/* Actual Revenue */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Actual Revenue (USD Millions)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="current_revenue_usd"
+                      value={formData.current_revenue_usd}
+                      onChange={handleChange}
+                      placeholder="50.5"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white text-gray-900 placeholder-gray-400"
+                    />
+                    <p className="mt-1.5 text-xs text-gray-500">Current: {(company as any).current_revenue_usd ? `$${(company as any).current_revenue_usd}M` : 'Not set'}</p>
                   </div>
                 </div>
               </div>

@@ -8,7 +8,6 @@ import CompanyModal from './components/CompanyModal'
 import LoginModal from './components/LoginModal'
 import HorizontalFilters from './components/HorizontalFilters'
 import Pagination from './components/Pagination'
-import MLEnrichmentButton from './components/MLEnrichmentButton'
 import { exportToCSV } from './utils/csvExport'
 import type { CompanyFilters, Investment } from './types/company'
 
@@ -175,10 +174,6 @@ function App() {
               {isAdmin ? (
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-blue-200">{adminEmail}</span>
-                  <MLEnrichmentButton
-                    isAdmin={isAdmin}
-                    onEnrichmentComplete={() => refetchCompanies()}
-                  />
                   <button
                     onClick={handleLogout}
                     className="flex items-center gap-2 px-3 py-1.5 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors text-sm backdrop-blur-sm border border-white/20"

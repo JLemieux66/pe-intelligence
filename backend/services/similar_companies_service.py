@@ -339,31 +339,31 @@ class SimilarCompaniesService(BaseService):
         if revenue_a and revenue_b and revenue_a > 0 and revenue_b > 0:
             ratio = min(revenue_a, revenue_b) / max(revenue_a, revenue_b)
 
-            # Granular scoring bands - reward close matches heavily
-            if ratio >= 0.9:  # Within 10%
+            # Tightened scoring bands - reward very close matches, penalize larger gaps
+            if ratio >= 0.95:  # Within 5%
                 revenue_score = 30
                 matching_attributes.append(f"Nearly identical revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
-            elif ratio >= 0.8:  # Within 20%
+            elif ratio >= 0.90:  # Within 10%
                 revenue_score = 27
                 matching_attributes.append(f"Very similar revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
-            elif ratio >= 0.7:  # Within 30%
+            elif ratio >= 0.85:  # Within 15%
                 revenue_score = 24
                 matching_attributes.append(f"Highly similar revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
-            elif ratio >= 0.6:  # Within 40%
-                revenue_score = 21
-                matching_attributes.append(f"Very similar revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
-            elif ratio >= 0.5:  # Within 50%
-                revenue_score = 18
+            elif ratio >= 0.75:  # Within 25%
+                revenue_score = 20
                 matching_attributes.append(f"Similar revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
-            elif ratio >= 0.4:  # Within 60%
-                revenue_score = 13
+            elif ratio >= 0.65:  # Within 35%
+                revenue_score = 16
                 matching_attributes.append(f"Comparable revenue: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
-            elif ratio >= 0.3:  # Within 70%
-                revenue_score = 8
+            elif ratio >= 0.50:  # Within 50%
+                revenue_score = 11
                 matching_attributes.append(f"Similar revenue scale: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
-            elif ratio >= 0.2:  # Within 80%
-                revenue_score = 4
+            elif ratio >= 0.35:  # Within 65%
+                revenue_score = 6
                 matching_attributes.append(f"Same revenue tier: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
+            elif ratio >= 0.25:  # Within 75%
+                revenue_score = 3
+                matching_attributes.append(f"Broad revenue tier: ${revenue_a:.1f}M vs ${revenue_b:.1f}M")
             else:
                 revenue_score = 0
 
@@ -439,31 +439,31 @@ class SimilarCompaniesService(BaseService):
             # Calculate ratio (smaller/larger)
             ratio = min(emp_a, emp_b) / max(emp_a, emp_b)
 
-            # Granular scoring bands - reward close matches
-            if ratio >= 0.9:  # Within 10%
+            # Very tight scoring bands - only close matches get high scores
+            if ratio >= 0.95:  # Within 5%
                 employee_score = 25
                 matching_attributes.append(f"Nearly identical employee count: {emp_a:,} vs {emp_b:,}")
-            elif ratio >= 0.8:  # Within 20%
+            elif ratio >= 0.90:  # Within 10%
                 employee_score = 22
                 matching_attributes.append(f"Very similar employee count: {emp_a:,} vs {emp_b:,}")
-            elif ratio >= 0.7:  # Within 30%
+            elif ratio >= 0.85:  # Within 15%
                 employee_score = 19
-                matching_attributes.append(f"Highly similar team size: {emp_a:,} vs {emp_b:,}")
-            elif ratio >= 0.6:  # Within 40%
-                employee_score = 16
                 matching_attributes.append(f"Similar employee count: {emp_a:,} vs {emp_b:,}")
-            elif ratio >= 0.5:  # Within 50%
-                employee_score = 13
+            elif ratio >= 0.80:  # Within 20%
+                employee_score = 16
+                matching_attributes.append(f"Similar team size: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.70:  # Within 30%
+                employee_score = 12
                 matching_attributes.append(f"Comparable team size: {emp_a:,} vs {emp_b:,}")
-            elif ratio >= 0.4:  # Within 60%
-                employee_score = 10
+            elif ratio >= 0.60:  # Within 40%
+                employee_score = 8
                 matching_attributes.append(f"Similar company size: {emp_a:,} vs {emp_b:,}")
-            elif ratio >= 0.3:  # Within 70%
-                employee_score = 7
-                matching_attributes.append(f"Similar scale: {emp_a:,} vs {emp_b:,}")
-            elif ratio >= 0.2:  # Within 80%
-                employee_score = 4
-                matching_attributes.append(f"Same size category: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.50:  # Within 50%
+                employee_score = 5
+                matching_attributes.append(f"Broad size category: {emp_a:,} vs {emp_b:,}")
+            elif ratio >= 0.35:  # Within 65%
+                employee_score = 2
+                matching_attributes.append(f"Same scale tier: {emp_a:,} vs {emp_b:,}")
             else:
                 employee_score = 0
 

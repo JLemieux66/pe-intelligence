@@ -115,8 +115,8 @@ class InvestmentService(BaseService):
             employee_count=self.get_employee_count_display(investment.company),
             industry_category=investment.company.industry_category,
             industries=industries_list,
-            predicted_revenue=investment.company.predicted_revenue,
-            prediction_confidence=self.get_prediction_confidence_display(investment.company),
+            predicted_revenue=investment.company.predicted_revenue,  # Already in millions in DB
+            prediction_confidence=investment.company.prediction_confidence,  # Keep as float 0-1 for frontend
             headquarters=headquarters,
             website=investment.company.website,
             linkedin_url=investment.company.linkedin_url,
@@ -133,6 +133,10 @@ class InvestmentService(BaseService):
     
     def apply_filters(self, query, filters: Dict[str, Any]):
         """Apply all filters to an investment query"""
+        
+        # Company ID filter (for fetching investments by company)
+        if filters.get('company_id'):
+            query = query.filter(CompanyPEInvestment.company_id == filters['company_id'])
         
         # PE Firm filter
         if filters.get('pe_firm'):
