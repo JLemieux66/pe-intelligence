@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from src.models.database_models_v2 import get_session
-from backend.auth import verify_admin_token, get_optional_admin
+from backend.auth import verify_admin_token
 from backend.schemas.requests import SimilarCompaniesRequest
 from backend.schemas.responses import SimilarCompaniesResponse
 from backend.services.similar_companies_service import SimilarCompaniesService
