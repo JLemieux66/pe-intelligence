@@ -36,43 +36,61 @@ class FeatureEngineer:
 
         # 1. Employee-based features
         if 'employee_count_pitchbook' in df.columns:
-            df['log_employees'] = np.log1p(df['employee_count_pitchbook'].fillna(0))
-            df['employees_squared'] = df['employee_count_pitchbook'] ** 2
+            # Ensure numeric type before applying numpy functions
+            emp_count = pd.to_numeric(df['employee_count_pitchbook'], errors='coerce').fillna(0)
+            df['log_employees'] = np.log1p(emp_count)
+            df['employees_squared'] = emp_count ** 2
 
         # 2. Funding-based features
         if 'total_funding_usd' in df.columns and 'num_funding_rounds' in df.columns:
-            df['avg_funding_per_round'] = df['total_funding_usd'] / (df['num_funding_rounds'] + 1)
-            df['log_total_funding'] = np.log1p(df['total_funding_usd'])
-            df['funding_efficiency'] = df['total_funding_usd'] / (df['employee_count_pitchbook'].fillna(1) + 1)
+            # Ensure numeric types
+            total_funding = pd.to_numeric(df['total_funding_usd'], errors='coerce').fillna(0)
+            num_rounds = pd.to_numeric(df['num_funding_rounds'], errors='coerce').fillna(0)
+            emp_for_efficiency = pd.to_numeric(df['employee_count_pitchbook'], errors='coerce').fillna(1)
+
+            df['avg_funding_per_round'] = total_funding / (num_rounds + 1)
+            df['log_total_funding'] = np.log1p(total_funding)
+            df['funding_efficiency'] = total_funding / (emp_for_efficiency + 1)
 
         # 3. Valuation-based features
         if 'pitchbook_valuation_usd_millions' in df.columns:
-            df['log_valuation'] = np.log1p(df['pitchbook_valuation_usd_millions'].fillna(0).infer_objects(copy=False))
-            df['valuation_per_employee'] = df['pitchbook_valuation_usd_millions'] / (df['employee_count_pitchbook'].fillna(1).infer_objects(copy=False) + 1)
+            # Ensure numeric types
+            valuation = pd.to_numeric(df['pitchbook_valuation_usd_millions'], errors='coerce').fillna(0)
+            emp_for_valuation = pd.to_numeric(df['employee_count_pitchbook'], errors='coerce').fillna(1)
+
+            df['log_valuation'] = np.log1p(valuation)
+            df['valuation_per_employee'] = valuation / (emp_for_valuation + 1)
 
         # 4. Age and timing features
         if 'company_age_years' in df.columns:
-            df['age_squared'] = df['company_age_years'] ** 2
-            df['is_young_company'] = (df['company_age_years'] <= 5).astype(int)
-            df['is_mature_company'] = (df['company_age_years'] >= 15).astype(int)
+            # Ensure numeric type
+            age = pd.to_numeric(df['company_age_years'], errors='coerce').fillna(0)
+            df['age_squared'] = age ** 2
+            df['is_young_company'] = (age <= 5).astype(int)
+            df['is_mature_company'] = (age >= 15).astype(int)
 
         if 'months_since_last_funding' in df.columns:
-            filled_months = df['months_since_last_funding'].fillna(60).infer_objects(copy=False)
-            df['funding_recency_score'] = 1 / (filled_months + 1)
+            # Ensure numeric type
+            months = pd.to_numeric(df['months_since_last_funding'], errors='coerce').fillna(60)
+            df['funding_recency_score'] = 1 / (months + 1)
 
         # 5. PE investor features
         if 'num_pe_investors' in df.columns:
-            df['has_pe_backing'] = (df['num_pe_investors'] > 0).astype(int)
+            # Ensure numeric type
+            num_pe = pd.to_numeric(df['num_pe_investors'], errors='coerce').fillna(0)
+            df['has_pe_backing'] = (num_pe > 0).astype(int)
             df['pe_investor_strength'] = np.where(
-                df['num_pe_investors'] > 0,
-                np.log1p(df['num_pe_investors']),
+                num_pe > 0,
+                np.log1p(num_pe),
                 0
             )
 
         # 6. Funding stage features
         if 'funding_stage_encoded' in df.columns:
-            df['is_growth_stage'] = (df['funding_stage_encoded'] >= 4).astype(int)
-            df['is_early_stage'] = (df['funding_stage_encoded'] <= 2).astype(int)
+            # Ensure numeric type
+            stage = pd.to_numeric(df['funding_stage_encoded'], errors='coerce').fillna(0)
+            df['is_growth_stage'] = (stage >= 4).astype(int)
+            df['is_early_stage'] = (stage <= 2).astype(int)
 
         # 7. Geographic concentration
         if 'pitchbook_hq_country' in df.columns:
@@ -93,10 +111,16 @@ class FeatureEngineer:
 
         # 10. Interaction features
         if 'employee_count_pitchbook' in df.columns and 'funding_stage_encoded' in df.columns:
-            df['employees_x_stage'] = df['employee_count_pitchbook'] * df['funding_stage_encoded']
+            # Ensure numeric types
+            emp = pd.to_numeric(df['employee_count_pitchbook'], errors='coerce').fillna(0)
+            stage = pd.to_numeric(df['funding_stage_encoded'], errors='coerce').fillna(0)
+            df['employees_x_stage'] = emp * stage
 
         if 'pitchbook_valuation_usd_millions' in df.columns and 'company_age_years' in df.columns:
-            df['valuation_growth_rate'] = df['pitchbook_valuation_usd_millions'] / (df['company_age_years'].fillna(1).infer_objects(copy=False) + 1)
+            # Ensure numeric types
+            valuation = pd.to_numeric(df['pitchbook_valuation_usd_millions'], errors='coerce').fillna(0)
+            age = pd.to_numeric(df['company_age_years'], errors='coerce').fillna(1)
+            df['valuation_growth_rate'] = valuation / (age + 1)
 
         return df
 
@@ -111,7 +135,8 @@ class FeatureEngineer:
         ]
         for col in zero_fill_cols:
             if col in df.columns:
-                df[col] = df[col].fillna(0)
+                # Ensure numeric type before filling
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         # Strategy 2: Fill with median for continuous variables
         median_fill_cols = [
@@ -121,12 +146,15 @@ class FeatureEngineer:
         ]
         for col in median_fill_cols:
             if col in df.columns:
+                # Ensure numeric type
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+
                 if fit:
                     median_val = df[col].median()
                     self.__dict__[f'{col}_median'] = median_val
                 else:
                     median_val = self.__dict__.get(f'{col}_median', df[col].median())
-                df[col] = df[col].fillna(median_val).infer_objects(copy=False)
+                df[col] = df[col].fillna(median_val)
 
         # Strategy 3: Fill categorical with 'Unknown' - only for columns we'll encode
         # Match the columns in encode_categorical_features to avoid 'Unknown' in unencoded columns
