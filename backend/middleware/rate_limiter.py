@@ -65,9 +65,16 @@ class RateLimiter:
         identifier = f"{client_ip}:{user_agent}"
         return hashlib.md5(identifier.encode()).hexdigest()
 
-    def get_rule_for_path(self, path: str) -> RateLimitRule:
-        """Get rate limit rule for specific path"""
+    def get_rule_for_path(self, path: str, method: str = "GET") -> RateLimitRule:
+        """Get rate limit rule for specific path and method"""
+        # For read operations (GET, HEAD, OPTIONS), use more permissive limits
+        # For write operations (POST, PUT, DELETE, PATCH), use stricter limits
+
         # Check for exact match first
+        rule_key = f"{method}:{path}"
+        if rule_key in self.rules:
+            return self.rules[rule_key]
+
         if path in self.rules:
             return self.rules[path]
 
@@ -101,8 +108,8 @@ class RateLimiter:
                 "retry_after": remaining
             }
 
-        # Get applicable rule
-        rule = self.get_rule_for_path(request.url.path)
+        # Get applicable rule (pass request method for method-specific rules)
+        rule = self.get_rule_for_path(request.url.path, request.method)
 
         # Clean up old requests outside the window
         cutoff_time = current_time - rule.window
@@ -166,12 +173,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             RateLimitRule(requests=5, window=60, block_duration=600)  # 5 per minute, block 10 mins
         )
 
-        # Configure limits for mutation endpoints
-        for path in ["/api/companies", "/api/investments", "/api/pe-firms"]:
+        # Configure permissive limits for read operations (GET requests)
+        # Most API endpoints are read-heavy, so allow more GET requests
+        for path in ["/api/companies", "/api/investments", "/api/pe-firms", "/api/stats",
+                     "/api/locations", "/api/pitchbook-metadata"]:
+            # GET requests: 300 per minute (5 per second)
             self.rate_limiter.add_rule(
-                path,
-                RateLimitRule(requests=50, window=60)  # 50 per minute
+                f"GET:{path}",
+                RateLimitRule(requests=300, window=60)
             )
+            # POST/PUT/DELETE: 30 per minute (more restrictive for writes)
+            for method in ["POST", "PUT", "DELETE", "PATCH"]:
+                self.rate_limiter.add_rule(
+                    f"{method}:{path}",
+                    RateLimitRule(requests=30, window=60)
+                )
 
     async def dispatch(self, request: Request, call_next: Callable):
         """Process request with rate limiting"""
