@@ -38,7 +38,7 @@ class FeatureEngineer:
 
         # 3. Valuation-based features
         if 'pitchbook_valuation_usd_millions' in df.columns:
-            df['log_valuation'] = np.log1p(df['pitchbook_valuation_usd_millions'].fillna(0))
+            df['log_valuation'] = np.log1p(df['pitchbook_valuation_usd_millions'].fillna(0).infer_objects(copy=False))
             df['valuation_per_employee'] = df['pitchbook_valuation_usd_millions'] / (df['employee_count_pitchbook'].fillna(1) + 1)
 
         # 4. Age and timing features
@@ -48,7 +48,7 @@ class FeatureEngineer:
             df['is_mature_company'] = (df['company_age_years'] >= 15).astype(int)
 
         if 'months_since_last_funding' in df.columns:
-            filled_months = df['months_since_last_funding'].fillna(60)
+            filled_months = df['months_since_last_funding'].fillna(60).infer_objects(copy=False)
             df['funding_recency_score'] = 1 / (filled_months + 1)
 
         # 5. PE investor features
@@ -87,7 +87,7 @@ class FeatureEngineer:
             df['employees_x_stage'] = df['employee_count_pitchbook'] * df['funding_stage_encoded']
 
         if 'pitchbook_valuation_usd_millions' in df.columns and 'company_age_years' in df.columns:
-            df['valuation_growth_rate'] = df['pitchbook_valuation_usd_millions'] / (df['company_age_years'].fillna(1) + 1)
+            df['valuation_growth_rate'] = df['pitchbook_valuation_usd_millions'] / (df['company_age_years'].fillna(1).infer_objects(copy=False) + 1)
 
         return df
 
@@ -117,7 +117,7 @@ class FeatureEngineer:
                     self.__dict__[f'{col}_median'] = median_val
                 else:
                     median_val = self.__dict__.get(f'{col}_median', df[col].median())
-                filled_values = df[col].fillna(median_val)
+                filled_values = df[col].fillna(median_val).infer_objects(copy=False)
                 df[col] = filled_values
 
         # Strategy 3: Fill categorical with 'Unknown'
@@ -145,6 +145,9 @@ class FeatureEngineer:
             if col not in df.columns:
                 continue
 
+            # Ensure column is string type
+            df[col] = df[col].astype(str)
+
             # Frequency encoding for high cardinality
             if fit:
                 freq_map = df[col].value_counts(normalize=True).to_dict()
@@ -152,7 +155,7 @@ class FeatureEngineer:
             else:
                 freq_map = self.label_encoders.get(f'{col}_freq', {})
 
-            df[f'{col}_freq'] = df[col].map(freq_map).fillna(0)
+            df[f'{col}_freq'] = df[col].map(freq_map).fillna(0).astype(float)
 
             # Label encoding as backup
             if fit:
@@ -166,9 +169,13 @@ class FeatureEngineer:
 
             le = self.label_encoders.get(col)
             if le:
-                df[f'{col}_encoded'] = df[col].map(
-                    lambda x: le.transform([x])[0] if x in le.classes_ else -1
-                )
+                encoded_values = []
+                for x in df[col]:
+                    if x in le.classes_:
+                        encoded_values.append(le.transform([x])[0])
+                    else:
+                        encoded_values.append(-1)
+                df[f'{col}_encoded'] = encoded_values
 
         return df
 
@@ -237,34 +244,28 @@ class FeatureEngineer:
 
     def fit_transform(self, df: pd.DataFrame, target: str = 'revenue_usd_millions') -> pd.DataFrame:
         """Full pipeline: fit and transform"""
-        print("Starting feature engineering pipeline...")
-        print(f"Initial shape: {df.shape}")
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info("Starting feature engineering pipeline")
 
         # Step 1: Create derived features
-        print("Creating derived features...")
         df = self.create_derived_features(df)
-        print(f"After derived features: {df.shape}")
 
         # Step 2: Handle missing values
-        print("Handling missing values...")
         df = self.handle_missing_values(df, fit=True)
 
         # Step 3: Encode categorical features
-        print("Encoding categorical features...")
         df = self.encode_categorical_features(df, fit=True)
-        print(f"After encoding: {df.shape}")
 
         # Step 4: Select features
-        print("Selecting features...")
         df = self.select_features(df, target)
-        print(f"After feature selection: {df.shape}")
-        print(f"Selected {len(self.feature_names)} features")
+        logger.info(f"Selected {len(self.feature_names)} features")
 
         # Step 5: Scale features
-        print("Scaling features...")
         df = self.scale_features(df, target, fit=True)
 
-        print("Feature engineering complete!")
+        logger.info("Feature engineering complete")
         return df
 
     def transform(self, df: pd.DataFrame, target: str = 'revenue_usd_millions') -> pd.DataFrame:
