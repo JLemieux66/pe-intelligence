@@ -108,9 +108,11 @@ export interface Stats {
 
 export interface CompanyFilters {
   pe_firm?: string
+  pe_firm_filter_mode?: 'or' | 'and' | 'exact'
   status?: string
   exit_type?: string
   industry?: string
+  industry_filter_mode?: 'or' | 'and' | 'exact'
   search?: string
   limit?: number
   offset?: number
@@ -123,8 +125,11 @@ export interface CompanyFilters {
   verticals_filter_mode?: 'or' | 'and' | 'exact'
   // Location filters
   country?: string
+  country_filter_mode?: 'or' | 'and' | 'exact'
   state_region?: string
+  state_region_filter_mode?: 'or' | 'and' | 'exact'
   city?: string
+  city_filter_mode?: 'or' | 'and' | 'exact'
   // Range filters
   min_revenue?: number
   max_revenue?: number

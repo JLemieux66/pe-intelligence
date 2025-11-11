@@ -206,11 +206,47 @@ class CompanyService(BaseService):
         if filters.get('search'):
             query = query.filter(Company.name.ilike(f"%{filters['search']}%"))
 
-        # PE Firm filter
+        # PE Firm filter (supports AND/OR/EXACT modes)
         if filters.get('pe_firm'):
             pe_firms = [f.strip() for f in filters['pe_firm'].split(',')]
-            firm_conditions = [PEFirm.name.ilike(f"%{firm}%") for firm in pe_firms]
-            query = query.filter(or_(*firm_conditions))
+            filter_mode = filters.get('pe_firm_filter_mode', 'or').lower()
+
+            if filter_mode == 'and':
+                # Companies must have investments from ALL selected PE firms (co-investment)
+                for firm in pe_firms:
+                    subquery = (
+                        self.session.query(CompanyPEInvestment.company_id)
+                        .join(PEFirm)
+                        .filter(PEFirm.name.ilike(f"%{firm}%"))
+                        .subquery()
+                    )
+                    query = query.filter(Company.id.in_(subquery))
+            elif filter_mode == 'exact':
+                # Companies must have investments from EXACTLY these PE firms (no more, no less)
+                # First, ensure they have all required firms
+                for firm in pe_firms:
+                    subquery = (
+                        self.session.query(CompanyPEInvestment.company_id)
+                        .join(PEFirm)
+                        .filter(PEFirm.name.ilike(f"%{firm}%"))
+                        .subquery()
+                    )
+                    query = query.filter(Company.id.in_(subquery))
+
+                # Then, ensure they don't have any additional PE firms
+                # Count of distinct PE firms should equal the number requested
+                firm_count_subquery = (
+                    self.session.query(CompanyPEInvestment.company_id)
+                    .join(PEFirm)
+                    .group_by(CompanyPEInvestment.company_id)
+                    .having(func.count(func.distinct(PEFirm.id)) == len(pe_firms))
+                    .subquery()
+                )
+                query = query.filter(Company.id.in_(firm_count_subquery))
+            else:
+                # Default 'or' mode - companies with ANY of the selected PE firms
+                firm_conditions = [PEFirm.name.ilike(f"%{firm}%") for firm in pe_firms]
+                query = query.filter(or_(*firm_conditions))
 
         # Status filter
         if filters.get('status'):
@@ -327,27 +363,64 @@ class CompanyService(BaseService):
                     or_(*vertical_conditions)
                 )
 
-        # Location filters
+        # Location filters (supports AND/OR/EXACT modes)
+        # Note: For single-value fields, AND/EXACT with multiple selections returns no results
         if filters.get('country'):
             countries = [c.strip() for c in filters['country'].split(',')]
-            query = query.filter(
-                Company.country != None,
-                Company.country.in_(countries)
-            )
+            filter_mode = filters.get('country_filter_mode', 'or').lower()
+
+            if filter_mode == 'and' or filter_mode == 'exact':
+                # For single-value fields, AND/EXACT only makes sense with one value
+                if len(countries) == 1:
+                    query = query.filter(
+                        Company.country != None,
+                        Company.country.in_(countries)
+                    )
+                # Multiple countries with AND/EXACT returns no results (impossible)
+            else:
+                # Default OR mode
+                query = query.filter(
+                    Company.country != None,
+                    Company.country.in_(countries)
+                )
 
         if filters.get('state_region'):
             states = [s.strip() for s in filters['state_region'].split(',')]
-            query = query.filter(
-                Company.state_region != None,
-                Company.state_region.in_(states)
-            )
+            filter_mode = filters.get('state_region_filter_mode', 'or').lower()
+
+            if filter_mode == 'and' or filter_mode == 'exact':
+                # For single-value fields, AND/EXACT only makes sense with one value
+                if len(states) == 1:
+                    query = query.filter(
+                        Company.state_region != None,
+                        Company.state_region.in_(states)
+                    )
+                # Multiple states with AND/EXACT returns no results (impossible)
+            else:
+                # Default OR mode
+                query = query.filter(
+                    Company.state_region != None,
+                    Company.state_region.in_(states)
+                )
 
         if filters.get('city'):
             cities = [c.strip() for c in filters['city'].split(',')]
-            query = query.filter(
-                Company.city != None,
-                Company.city.in_(cities)
-            )
+            filter_mode = filters.get('city_filter_mode', 'or').lower()
+
+            if filter_mode == 'and' or filter_mode == 'exact':
+                # For single-value fields, AND/EXACT only makes sense with one value
+                if len(cities) == 1:
+                    query = query.filter(
+                        Company.city != None,
+                        Company.city.in_(cities)
+                    )
+                # Multiple cities with AND/EXACT returns no results (impossible)
+            else:
+                # Default OR mode
+                query = query.filter(
+                    Company.city != None,
+                    Company.city.in_(cities)
+                )
 
         # Revenue filters
         if filters.get('revenue_range'):
