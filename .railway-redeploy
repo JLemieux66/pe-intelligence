@@ -1,0 +1,15 @@
+# Railway Redeploy Trigger
+# Forces Railway to rebuild and clear Python bytecode caches
+
+Deployment timestamp: 2025-11-10T23:45:00Z
+Reason: Clear .pyc caches and deploy ML encoding fixes
+Commit: Force fresh deployment after PR #16 merge
+
+IMPORTANT: This deployment includes critical ML fixes:
+- Categorical encoding with proper type conversion
+- Pandas deprecation warnings resolved
+- 'Unknown' string handling fixed
+- Logging verbosity reduced
+
+All fixes are in commit df8214b which is now on main.
+Railway needs to clear .pyc caches to pick up the changes.
