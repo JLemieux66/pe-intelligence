@@ -61,7 +61,7 @@ class Company(Base):
     crunchbase_employee_count = Column(String(50), index=True)  # Crunchbase range (e.g., "501-1,000")
 
     # ML prediction fields
-    predicted_revenue = Column(Float, index=True)  # ML-predicted revenue in USD
+    predicted_revenue = Column(Float, index=True)  # ML-predicted revenue in millions USD
     prediction_confidence = Column(Float)  # Confidence score 0-1 for revenue prediction
     employee_count = Column(Integer, index=True)  # PitchBook exact employee count
     projected_employee_count = Column(Integer, index=True)  # Scraped exact count from LinkedIn

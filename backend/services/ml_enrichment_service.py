@@ -47,6 +47,7 @@ class MLEnrichmentService:
     def prepare_company_features(self, company: Company) -> Dict[str, Any]:
         """Extract features from company for ML prediction"""
         return {
+            # Valuation is already in millions USD according to schema
             'pitchbook_valuation_usd_millions': company.last_known_valuation_usd,
             'employee_count_pitchbook': company.employee_count,
             'employee_count_linkedin_scraped': company.projected_employee_count,
@@ -167,6 +168,7 @@ class MLEnrichmentService:
             return company
 
         # Update company with prediction - convert numpy types to Python floats for PostgreSQL
+        # Store predicted revenue in millions USD (consistent with current_revenue_usd field)
         company.predicted_revenue = float(prediction['predicted_revenue'])
         company.prediction_confidence = float(prediction['features_completeness'])  # Store as float for now
 
@@ -229,6 +231,7 @@ class MLEnrichmentService:
                 prediction = self.predict_revenue(company)
                 if prediction:
                     # Convert numpy types to Python floats for PostgreSQL
+                    # Store predicted revenue in millions USD (consistent with current_revenue_usd field)
                     company.predicted_revenue = float(prediction['predicted_revenue'])
                     company.prediction_confidence = float(prediction['features_completeness'])
                     enriched += 1
