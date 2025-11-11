@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from src.models.database_models_v2 import get_session
-from backend.auth import verify_admin_token
+from backend.auth import verify_admin_token, get_optional_admin
 from backend.schemas.requests import SimilarCompaniesRequest
 from backend.schemas.responses import SimilarCompaniesResponse
 from backend.services.similar_companies_service import SimilarCompaniesService
@@ -17,7 +17,6 @@ router = APIRouter(prefix="/api", tags=["similar-companies"])
 @router.post("/similar-companies", response_model=SimilarCompaniesResponse)
 async def find_similar_companies(
     request: SimilarCompaniesRequest,
-    admin: dict = Depends(verify_admin_token),
     session: Session = Depends(get_session)
 ):
     """
