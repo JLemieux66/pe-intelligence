@@ -116,8 +116,11 @@ export interface CompanyFilters {
   offset?: number
   // PitchBook filters
   industry_group?: string
+  industry_group_filter_mode?: 'or' | 'and' | 'exact'
   industry_sector?: string
+  industry_sector_filter_mode?: 'or' | 'and' | 'exact'
   verticals?: string
+  verticals_filter_mode?: 'or' | 'and' | 'exact'
   // Location filters
   country?: string
   state_region?: string

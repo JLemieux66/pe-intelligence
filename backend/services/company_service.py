@@ -216,36 +216,116 @@ class CompanyService(BaseService):
         if filters.get('status'):
             query = query.filter(CompanyPEInvestment.computed_status.ilike(f"%{filters['status']}%"))
 
-        # Industry filter
+        # Industry filter (supports AND/OR/EXACT modes)
         if filters.get('industry'):
             industries = [i.strip() for i in filters['industry'].split(',')]
-            query = query.join(CompanyTag, Company.id == CompanyTag.company_id).filter(
-                CompanyTag.tag_category == 'industry',
-                CompanyTag.tag_value.in_(industries)
-            ).distinct()
+            filter_mode = filters.get('industry_filter_mode', 'or').lower()
 
-        # PitchBook filters
+            if filter_mode == 'and':
+                # Companies must have ALL selected industries
+                for industry in industries:
+                    subquery = self.session.query(CompanyTag.company_id).filter(
+                        CompanyTag.tag_category == 'industry',
+                        CompanyTag.tag_value == industry
+                    ).subquery()
+                    query = query.filter(Company.id.in_(subquery))
+            elif filter_mode == 'exact':
+                # Companies must have EXACTLY these industries (no more, no less)
+                # First, get companies that have all required industries
+                for industry in industries:
+                    subquery = self.session.query(CompanyTag.company_id).filter(
+                        CompanyTag.tag_category == 'industry',
+                        CompanyTag.tag_value == industry
+                    ).subquery()
+                    query = query.filter(Company.id.in_(subquery))
+
+                # Then, ensure they don't have any additional industries
+                # Count of industries for each company should equal the number requested
+                industry_count_subquery = (
+                    self.session.query(CompanyTag.company_id)
+                    .filter(CompanyTag.tag_category == 'industry')
+                    .group_by(CompanyTag.company_id)
+                    .having(func.count(CompanyTag.tag_value) == len(industries))
+                    .subquery()
+                )
+                query = query.filter(Company.id.in_(industry_count_subquery))
+            else:
+                # Default 'or' mode - companies with ANY of the selected industries
+                query = query.join(CompanyTag, Company.id == CompanyTag.company_id).filter(
+                    CompanyTag.tag_category == 'industry',
+                    CompanyTag.tag_value.in_(industries)
+                ).distinct()
+
+        # PitchBook filters with AND/OR/EXACT support
         if filters.get('industry_group'):
             groups = [g.strip() for g in filters['industry_group'].split(',')]
-            query = query.filter(
-                Company.primary_industry_group != None,
-                Company.primary_industry_group.in_(groups)
-            )
+            filter_mode = filters.get('industry_group_filter_mode', 'or').lower()
+
+            if filter_mode == 'and' or filter_mode == 'exact':
+                # For single-value fields like primary_industry_group, AND/EXACT only makes sense
+                # if there's exactly one group selected, otherwise no results
+                if len(groups) == 1:
+                    query = query.filter(
+                        Company.primary_industry_group != None,
+                        Company.primary_industry_group.in_(groups)
+                    )
+                # If multiple groups with AND/EXACT, return no results (impossible to satisfy)
+            else:
+                # Default OR mode
+                query = query.filter(
+                    Company.primary_industry_group != None,
+                    Company.primary_industry_group.in_(groups)
+                )
 
         if filters.get('industry_sector'):
             sectors = [s.strip() for s in filters['industry_sector'].split(',')]
-            query = query.filter(
-                Company.primary_industry_sector != None,
-                Company.primary_industry_sector.in_(sectors)
-            )
+            filter_mode = filters.get('industry_sector_filter_mode', 'or').lower()
+
+            if filter_mode == 'and' or filter_mode == 'exact':
+                # Same logic as industry_group
+                if len(sectors) == 1:
+                    query = query.filter(
+                        Company.primary_industry_sector != None,
+                        Company.primary_industry_sector.in_(sectors)
+                    )
+            else:
+                # Default OR mode
+                query = query.filter(
+                    Company.primary_industry_sector != None,
+                    Company.primary_industry_sector.in_(sectors)
+                )
 
         if filters.get('verticals'):
             vertical_list = [v.strip() for v in filters['verticals'].split(',')]
-            vertical_conditions = [Company.verticals.ilike(f"%{v}%") for v in vertical_list]
-            query = query.filter(
-                Company.verticals != None,
-                or_(*vertical_conditions)
-            )
+            filter_mode = filters.get('verticals_filter_mode', 'or').lower()
+
+            if filter_mode == 'and':
+                # Companies must have ALL selected verticals
+                for vertical in vertical_list:
+                    query = query.filter(
+                        Company.verticals != None,
+                        Company.verticals.ilike(f"%{vertical}%")
+                    )
+            elif filter_mode == 'exact':
+                # Companies must have EXACTLY these verticals (comma-separated)
+                # Build expected string patterns for exact match (order-independent)
+                for vertical in vertical_list:
+                    query = query.filter(
+                        Company.verticals != None,
+                        Company.verticals.ilike(f"%{vertical}%")
+                    )
+                # Count commas to ensure exact count match
+                expected_comma_count = len(vertical_list) - 1
+                query = query.filter(
+                    func.char_length(Company.verticals) - func.char_length(func.replace(Company.verticals, ',', '')) == expected_comma_count
+                )
+            else:
+                # Default OR mode
+                vertical_conditions = [Company.verticals.ilike(f"%{v}%") for v in vertical_list]
+                query = query.filter(
+                    Company.verticals != None,
+                    or_(*vertical_conditions)
+                )
 
         # Location filters
         if filters.get('country'):
@@ -276,11 +356,24 @@ class CompanyService(BaseService):
             if range_codes:
                 query = query.filter(Company.revenue_range.in_(range_codes))
 
+        # Min/Max revenue filters - check both current_revenue_usd and predicted_revenue
         if filters.get('min_revenue') is not None:
-            query = query.filter(Company.current_revenue_usd >= filters['min_revenue'])
+            min_rev = filters['min_revenue']
+            query = query.filter(
+                or_(
+                    Company.current_revenue_usd >= min_rev,
+                    Company.predicted_revenue >= min_rev
+                )
+            )
 
         if filters.get('max_revenue') is not None:
-            query = query.filter(Company.current_revenue_usd <= filters['max_revenue'])
+            max_rev = filters['max_revenue']
+            query = query.filter(
+                or_(
+                    Company.current_revenue_usd <= max_rev,
+                    Company.predicted_revenue <= max_rev
+                )
+            )
 
         # Employee count filters
         if filters.get('employee_count'):

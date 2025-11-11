@@ -23,7 +23,12 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
   const [maxRevenue, setMaxRevenue] = useState('')
   const [minEmployees, setMinEmployees] = useState('')
   const [maxEmployees, setMaxEmployees] = useState('')
-  
+
+  // Filter mode states (or, and, exact)
+  const [industryGroupFilterMode, setIndustryGroupFilterMode] = useState<'or' | 'and' | 'exact'>('or')
+  const [industrySectorFilterMode, setIndustrySectorFilterMode] = useState<'or' | 'and' | 'exact'>('or')
+  const [verticalsFilterMode, setVerticalsFilterMode] = useState<'or' | 'and' | 'exact'>('or')
+
   // Dropdown open states
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
@@ -46,9 +51,21 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     if (search) filters.search = search
     if (selectedFirms.length > 0) filters.pe_firm = selectedFirms.join(',')
     if (selectedStatus) filters.status = selectedStatus
-    if (selectedIndustryGroups.length > 0) filters.industry_group = selectedIndustryGroups.join(',')
-    if (selectedIndustrySectors.length > 0) filters.industry_sector = selectedIndustrySectors.join(',')
-    if (selectedVerticals.length > 0) filters.verticals = selectedVerticals.join(',')
+
+    if (selectedIndustryGroups.length > 0) {
+      filters.industry_group = selectedIndustryGroups.join(',')
+      filters.industry_group_filter_mode = industryGroupFilterMode
+    }
+
+    if (selectedIndustrySectors.length > 0) {
+      filters.industry_sector = selectedIndustrySectors.join(',')
+      filters.industry_sector_filter_mode = industrySectorFilterMode
+    }
+
+    if (selectedVerticals.length > 0) {
+      filters.verticals = selectedVerticals.join(',')
+      filters.verticals_filter_mode = verticalsFilterMode
+    }
 
     if (selectedCountries.length > 0) filters.country = selectedCountries.join(',')
     if (selectedStates.length > 0) filters.state_region = selectedStates.join(',')
@@ -57,10 +74,10 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     if (maxRevenue) filters.max_revenue = parseFloat(maxRevenue)
     if (minEmployees) filters.min_employees = parseInt(minEmployees)
     if (maxEmployees) filters.max_employees = parseInt(maxEmployees)
-    
+
     console.log('HorizontalFilters - Applying filters:', filters)
     onFilterChange(filters)
-  }, [search, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, onFilterChange])
+  }, [search, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, industryGroupFilterMode, industrySectorFilterMode, verticalsFilterMode, onFilterChange])
 
   const toggleSelection = (value: string, currentList: string[], setter: (list: string[]) => void) => {
     console.log('toggleSelection called', value, 'openDropdown:', openDropdown)
@@ -85,6 +102,9 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     setMaxRevenue('')
     setMinEmployees('')
     setMaxEmployees('')
+    setIndustryGroupFilterMode('or')
+    setIndustrySectorFilterMode('or')
+    setVerticalsFilterMode('or')
   }
 
   const activeFilterCount = [
@@ -269,9 +289,32 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                       }
                     }} 
                   />
-                  <div 
+                  <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
+                    {/* Filter Mode Selector */}
+                    <div className="p-3 border-b border-gray-200 bg-gray-50">
+                      <div className="text-xs font-semibold text-gray-700 mb-2">Match Mode:</div>
+                      <div className="flex gap-3">
+                        {[
+                          { value: 'or', label: 'Any', description: 'Has any selected' },
+                          { value: 'and', label: 'All', description: 'Has all selected' },
+                          { value: 'exact', label: 'Exact', description: 'Only these' }
+                        ].map(mode => (
+                          <label key={mode.value} className="flex items-center cursor-pointer group" title={mode.description}>
+                            <input
+                              type="radio"
+                              name="industry_sector_filter_mode"
+                              value={mode.value}
+                              checked={industrySectorFilterMode === mode.value}
+                              onChange={(e) => setIndustrySectorFilterMode(e.target.value as 'or' | 'and' | 'exact')}
+                              className="text-purple-600 focus:ring-purple-500"
+                            />
+                            <span className="ml-1.5 text-xs text-gray-700 group-hover:text-gray-900">{mode.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                     <div className="p-2 space-y-1">
                       {industrySectors.map((sector) => (
                         <label 
@@ -324,9 +367,32 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                       }
                     }} 
                   />
-                  <div 
+                  <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
+                    {/* Filter Mode Selector */}
+                    <div className="p-3 border-b border-gray-200 bg-gray-50">
+                      <div className="text-xs font-semibold text-gray-700 mb-2">Match Mode:</div>
+                      <div className="flex gap-3">
+                        {[
+                          { value: 'or', label: 'Any', description: 'Has any selected' },
+                          { value: 'and', label: 'All', description: 'Has all selected' },
+                          { value: 'exact', label: 'Exact', description: 'Only these' }
+                        ].map(mode => (
+                          <label key={mode.value} className="flex items-center cursor-pointer group" title={mode.description}>
+                            <input
+                              type="radio"
+                              name="industry_group_filter_mode"
+                              value={mode.value}
+                              checked={industryGroupFilterMode === mode.value}
+                              onChange={(e) => setIndustryGroupFilterMode(e.target.value as 'or' | 'and' | 'exact')}
+                              className="text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="ml-1.5 text-xs text-gray-700 group-hover:text-gray-900">{mode.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                     <div className="p-2 space-y-1">
                       {industryGroups.map((group) => (
                         <label 
@@ -379,9 +445,32 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                       }
                     }} 
                   />
-                  <div 
+                  <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
+                    {/* Filter Mode Selector */}
+                    <div className="p-3 border-b border-gray-200 bg-gray-50">
+                      <div className="text-xs font-semibold text-gray-700 mb-2">Match Mode:</div>
+                      <div className="flex gap-3">
+                        {[
+                          { value: 'or', label: 'Any', description: 'Has any selected' },
+                          { value: 'and', label: 'All', description: 'Has all selected' },
+                          { value: 'exact', label: 'Exact', description: 'Only these' }
+                        ].map(mode => (
+                          <label key={mode.value} className="flex items-center cursor-pointer group" title={mode.description}>
+                            <input
+                              type="radio"
+                              name="verticals_filter_mode"
+                              value={mode.value}
+                              checked={verticalsFilterMode === mode.value}
+                              onChange={(e) => setVerticalsFilterMode(e.target.value as 'or' | 'and' | 'exact')}
+                              className="text-pink-600 focus:ring-pink-500"
+                            />
+                            <span className="ml-1.5 text-xs text-gray-700 group-hover:text-gray-900">{mode.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                     <div className="p-2 space-y-1">
                       {verticals.map((vertical) => (
                         <label 
