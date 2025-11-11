@@ -34,7 +34,8 @@ class CompanyUpdate(BaseModel):
     country: Optional[str] = None
     industry_category: Optional[str] = None
     revenue_range: Optional[str] = None  # Crunchbase code
-    employee_count: Optional[str] = None  # Crunchbase code
+    employee_count: Optional[int] = None  # PitchBook exact count
+    crunchbase_employee_count: Optional[str] = None  # Crunchbase range code
     is_public: Optional[bool] = None
     ipo_exchange: Optional[str] = None
     ipo_date: Optional[str] = None

@@ -194,6 +194,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Skip rate limiting for health checks and docs
         if request.url.path in ["/health", "/", "/docs", "/openapi.json"]:
             return await call_next(request)
+        
+        # Skip rate limiting for CORS preflight OPTIONS requests
+        if request.method == "OPTIONS":
+            return await call_next(request)
 
         # Check rate limit
         is_allowed, info = self.rate_limiter.is_allowed(request)

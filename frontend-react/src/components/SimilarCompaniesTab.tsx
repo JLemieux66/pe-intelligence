@@ -289,7 +289,12 @@ function SimilarCompanyCard({ match, rank, inputCompanyId, onCompanyClick }: Sim
                 {company.current_revenue_usd && (
                   <div className="bg-gray-50 p-3 rounded-lg">
                     <div className="text-xs text-gray-500 mb-1">Revenue (PitchBook)</div>
-                    <div className="font-semibold text-gray-900">${company.current_revenue_usd.toFixed(1)}M</div>
+                    <div className="font-semibold text-gray-900">
+                      {company.current_revenue_usd >= 1000
+                        ? `$${(company.current_revenue_usd / 1000).toFixed(1)}B`
+                        : `$${company.current_revenue_usd.toFixed(1)}M`
+                      }
+                    </div>
                   </div>
                 )}
                 {company.employee_count && (
@@ -444,7 +449,12 @@ function SimilarCompanyCard({ match, rank, inputCompanyId, onCompanyClick }: Sim
                 {company.current_revenue_usd && (
                   <div className="flex items-center gap-1">
                     <DollarSign className="w-3.5 h-3.5" />
-                    <span>${company.current_revenue_usd.toFixed(1)}M revenue</span>
+                    <span>
+                      {company.current_revenue_usd >= 1000
+                        ? `$${(company.current_revenue_usd / 1000).toFixed(1)}B revenue`
+                        : `$${company.current_revenue_usd.toFixed(1)}M revenue`
+                      }
+                    </span>
                   </div>
                 )}
               </div>

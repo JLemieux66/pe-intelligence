@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchCompanyById, fetchCompanyFundingRounds } from '../api/client'
 import { useState } from 'react'
 import CompanyEditModal from './CompanyEditModal'
 import FundingTimeline from './FundingTimeline'
 import SimilarCompaniesTab from './SimilarCompaniesTab'
+import axios from 'axios'
 
 interface CompanyModalProps {
   companyId: number
@@ -58,6 +59,30 @@ export default function CompanyModal({ companyId, onClose, onNavigateToCompany }
   const [showEditModal, setShowEditModal] = useState(false)
   const [fundingView, setFundingView] = useState<'timeline' | 'list'>('timeline')
   const [activeTab, setActiveTab] = useState<'overview' | 'funding' | 'pitchbook' | 'similar'>('overview')
+  
+  const queryClient = useQueryClient()
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+
+  // Mutation to re-run ML prediction
+  const enrichMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('admin_token')
+      const response = await axios.post(
+        `${API_BASE_URL}/ml/enrich/company/${companyId}`,
+        {},
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+        }
+      )
+      return response.data
+    },
+    onSuccess: () => {
+      // Refetch company data to show updated prediction
+      queryClient.invalidateQueries({ queryKey: ['company', companyId] })
+    },
+  })
   
   const { data: company, isLoading, error } = useQuery({
     queryKey: ['company', companyId],
@@ -322,34 +347,87 @@ export default function CompanyModal({ companyId, onClose, onNavigateToCompany }
           {/* Tab Content */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* AI Revenue Prediction - Top Section */}
-              {company.predicted_revenue && (
-            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-200 rounded-xl p-6 shadow-lg">
+              {/* Revenue Section - Show Actual or AI Prediction */}
+              {(company.current_revenue_usd || company.predicted_revenue) && (
+            <div className={`border-2 rounded-xl p-6 shadow-lg ${
+              company.current_revenue_usd 
+                ? 'bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 border-green-200'
+                : 'bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-indigo-200'
+            }`}>
               <div className="flex items-center gap-2 mb-4">
-                <div className="p-2.5 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg shadow-lg shadow-indigo-500/50">
+                <div className={`p-2.5 rounded-lg shadow-lg ${
+                  company.current_revenue_usd
+                    ? 'bg-gradient-to-br from-green-600 to-emerald-600 shadow-green-500/50'
+                    : 'bg-gradient-to-br from-indigo-600 to-purple-600 shadow-indigo-500/50'
+                }`}>
                   <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M13 7H7v6h6V7z" />
-                    <path fillRule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clipRule="evenodd" />
+                    {company.current_revenue_usd ? (
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    ) : (
+                      <>
+                        <path d="M13 7H7v6h6V7z" />
+                        <path fillRule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clipRule="evenodd" />
+                      </>
+                    )}
                   </svg>
                 </div>
-                <h3 className="text-lg font-bold bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-900 bg-clip-text text-transparent">AI Revenue Prediction</h3>
-                <span className="ml-auto text-xs bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-3 py-1 rounded-full font-semibold shadow-md">ML-Powered</span>
+                <h3 className={`text-lg font-bold bg-clip-text text-transparent ${
+                  company.current_revenue_usd
+                    ? 'bg-gradient-to-r from-green-900 via-emerald-900 to-teal-900'
+                    : 'bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-900'
+                }`}>
+                  {company.current_revenue_usd ? 'Actual Revenue' : 'AI Revenue Prediction'}
+                </h3>
+                <div className="ml-auto flex items-center gap-2">
+                  {!company.current_revenue_usd && isAdminLoggedIn() && (
+                    <button
+                      onClick={() => enrichMutation.mutate()}
+                      disabled={enrichMutation.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      {enrichMutation.isPending ? 'Re-running...' : 'Re-run ML'}
+                    </button>
+                  )}
+                  {company.current_revenue_usd ? (
+                    <span className="text-xs px-3 py-1 rounded-full font-semibold shadow-md text-white bg-gradient-to-r from-green-600 to-emerald-600">
+                      Verified
+                    </span>
+                  ) : (
+                    <span className="text-xs px-3 py-1 rounded-full font-semibold shadow-md text-white bg-gradient-to-r from-indigo-600 to-purple-600">
+                      ML-Powered
+                    </span>
+                  )}
+                </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Revenue Amount */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Predicted Revenue</p>
-                  <p className="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    {company.predicted_revenue >= 1000000000 
-                      ? `$${(company.predicted_revenue / 1000000000).toFixed(1)}B`
-                      : `$${(company.predicted_revenue / 1000000).toFixed(1)}M`
-                    }
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+                    {company.current_revenue_usd ? 'Revenue' : 'Predicted Revenue'}
+                  </p>
+                  <p className={`text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
+                    company.current_revenue_usd
+                      ? 'from-green-600 via-emerald-600 to-teal-600'
+                      : 'from-indigo-600 via-purple-600 to-pink-600'
+                  }`}>
+                    {company.current_revenue_usd ? (
+                      company.current_revenue_usd >= 1000 
+                        ? `$${(company.current_revenue_usd / 1000).toFixed(1)}B`
+                        : `$${company.current_revenue_usd.toFixed(1)}M`
+                    ) : company.predicted_revenue ? (
+                      company.predicted_revenue >= 1000 
+                        ? `$${(company.predicted_revenue / 1000).toFixed(1)}B`
+                        : `$${company.predicted_revenue.toFixed(1)}M`
+                    ) : 'N/A'}
                   </p>
                 </div>
 
-                {/* Confidence Score */}
-                {company.prediction_confidence !== undefined && company.prediction_confidence !== null && (
+                {/* Confidence Score - Only for AI predictions */}
+                {!company.current_revenue_usd && company.prediction_confidence !== undefined && company.prediction_confidence !== null && (
                   <div>
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Confidence Score</p>
                     <div className="space-y-1.5">
@@ -446,10 +524,16 @@ export default function CompanyModal({ companyId, onClose, onNavigateToCompany }
                   </div>
                 )}
 
-                {(company.scraped_employee_count || company.crunchbase_employee_range) && (
+                {(company.pitchbook_employee_count || company.scraped_employee_count || company.crunchbase_employee_range) && (
                   <div>
                     <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Employees</dt>
                     <dd className="text-sm text-gray-900 mt-1 space-y-1.5">
+                      {company.pitchbook_employee_count && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-600 font-medium">{company.pitchbook_employee_count.toLocaleString()}</span>
+                          <span className="text-xs text-white bg-gradient-to-r from-orange-600 to-red-600 px-2 py-1 rounded-md font-semibold shadow-sm">PitchBook</span>
+                        </div>
+                      )}
                       {company.scraped_employee_count && (
                         <div className="flex items-center gap-2">
                           <span className="text-gray-600 font-medium">{company.scraped_employee_count.toLocaleString()}</span>

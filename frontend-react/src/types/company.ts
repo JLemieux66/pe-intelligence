@@ -11,7 +11,7 @@ export interface Investment {
   investment_year?: string
   sector?: string
   revenue_range?: string
-  predicted_revenue?: number
+  predicted_revenue?: number  // ML-predicted revenue in millions USD
   prediction_confidence?: number  // Confidence score 0-1
   employee_count?: string
   industry_category?: string  // Comma-separated string (legacy)
@@ -52,9 +52,10 @@ export interface Company {
   crunchbase_url?: string
   description?: string
   revenue_range?: string
-  predicted_revenue?: number
+  predicted_revenue?: number  // ML-predicted revenue in millions USD
   prediction_confidence?: number  // Confidence score 0-1
   employee_count?: string  // Display value (best available)
+  pitchbook_employee_count?: number  // PitchBook exact count
   crunchbase_employee_range?: string  // Crunchbase range (e.g., "501-1,000")
   scraped_employee_count?: number  // LinkedIn exact count
   industry_category?: string  // Comma-separated string (legacy)

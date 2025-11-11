@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowUpDown, ExternalLink, Building2, MapPin, Users, DollarSign, Edit2, Download, GitMerge } from 'lucide-react'
+import { ArrowUpDown, ExternalLink, Building2, MapPin, Users, Edit2, Download, GitMerge } from 'lucide-react'
 import type { Investment } from '../types/company'
 import CompanyEditModal from './CompanyEditModal'
 import CompanyMergeModal from './CompanyMergeModal'
@@ -161,14 +161,8 @@ export default function CompanyTable({ investments, loading, onCompanyClick, onE
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                 <SortButton field="employee_count" label="Employees" />
               </th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 tracking-wider w-32">
-                PitchBook Revenue
-              </th>
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                <SortButton field="revenue_range" label="Crunchbase Revenue" />
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                <SortButton field="predicted_revenue" label="Predicted Revenue" />
+                <SortButton field="predicted_revenue" label="Revenue" />
               </th>
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                 <SortButton field="prediction_confidence" label="Confidence" />
@@ -266,42 +260,31 @@ export default function CompanyTable({ investments, loading, onCompanyClick, onE
                 </td>
                 <td className="px-3 py-3">
                   {investment.current_revenue_usd ? (
-                    <div className="flex items-center">
-                      <DollarSign className="w-3 h-3 text-gray-400 mr-1 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-purple-600">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-green-600">
                         {investment.current_revenue_usd >= 1000
                           ? `$${(investment.current_revenue_usd / 1000).toFixed(1)}B`
                           : `$${investment.current_revenue_usd.toFixed(1)}M`
                         }
                       </span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                        Actual
+                      </span>
                     </div>
-                  ) : (
-                    <span className="text-sm text-gray-400">N/A</span>
-                  )}
-                </td>
-                <td className="px-3 py-3">
-                  <div className="flex items-start text-sm text-gray-700">
-                    <DollarSign className="w-3 h-3 text-gray-400 mr-1 mt-0.5 flex-shrink-0" />
-                    <span className="break-words text-xs">{investment.revenue_range || 'N/A'}</span>
-                  </div>
-                </td>
-                <td className="px-3 py-3">
-                  {investment.predicted_revenue ? (
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center">
-                        <span className="text-sm font-semibold text-indigo-600">
-                          {investment.predicted_revenue >= 1000000000
-                            ? `$${(investment.predicted_revenue / 1000000000).toFixed(1)}B`
-                            : `$${(investment.predicted_revenue / 1000000).toFixed(1)}M`
-                          }
-                        </span>
-                      </div>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">
+                  ) : investment.predicted_revenue ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-indigo-600">
+                        {investment.predicted_revenue >= 1000
+                          ? `$${(investment.predicted_revenue / 1000).toFixed(1)}B`
+                          : `$${investment.predicted_revenue.toFixed(1)}M`
+                        }
+                      </span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
                         <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M13 7H7v6h6V7z" />
                           <path fillRule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clipRule="evenodd" />
                         </svg>
-                        AI
+                        ML
                       </span>
                     </div>
                   ) : (
@@ -309,7 +292,19 @@ export default function CompanyTable({ investments, loading, onCompanyClick, onE
                   )}
                 </td>
                 <td className="px-3 py-3">
-                  {investment.prediction_confidence ? (
+                  {investment.current_revenue_usd ? (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span className="text-sm font-medium text-blue-700">
+                          Verified
+                        </span>
+                      </div>
+                      <span className="text-xs text-blue-600 font-medium">
+                        External
+                      </span>
+                    </div>
+                  ) : investment.prediction_confidence ? (
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-1.5">
                         <div className={`w-2 h-2 rounded-full ${

@@ -13,6 +13,18 @@ from backend.auth import verify_admin_token
 router = APIRouter(prefix="/api", tags=["investments"])
 
 
+@router.get("/companies/{company_id}/investments", response_model=List[InvestmentResponse])
+def get_company_investments(
+    company_id: int,
+    session = Depends(get_session)
+):
+    """Get all investments for a specific company"""
+    with InvestmentService(session) as investment_service:
+        # Get investments filtered by company_id
+        filters = {'company_id': company_id}
+        return investment_service.get_investments(filters, limit=1000, offset=0)
+
+
 @router.get("/investments", response_model=List[InvestmentResponse])
 def get_investments(
     pe_firm: Optional[str] = Query(None, description="Filter by PE firm name(s), comma-separated for multiple"),

@@ -72,9 +72,13 @@ app.add_middleware(
     expose_headers=["X-Total-Count", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
 )
 
-# Add rate limiting middleware for security
+# Add rate limiting middleware for security (disabled in development)
 # Protects against brute force attacks and DoS
-app.add_middleware(RateLimitMiddleware)
+if is_production:
+    app.add_middleware(RateLimitMiddleware)
+    print("🔒 Rate limiting enabled (production mode)")
+else:
+    print("⚠️  Rate limiting disabled (development mode)")
 
 
 @app.on_event("startup")
