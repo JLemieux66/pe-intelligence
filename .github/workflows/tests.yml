@@ -79,7 +79,7 @@ jobs:
 
     - name: Run QA Sub-Agent
       run: |
-        python3 backend/services/qa_service.py --json
+        pipenv run python3 backend/services/qa_service.py --json
       continue-on-error: true
 
     - name: Upload QA Report
@@ -123,9 +123,12 @@ jobs:
       with:
         python-version: '3.9'
 
+    - name: Install dependencies
+      run: pip install pipenv && pipenv install --dev
+
     - name: Run Security Sub-Agent
       run: |
-        python3 backend/services/security_service.py --json
+        pipenv run python3 backend/services/security_service.py --json
       continue-on-error: true
 
     - name: Upload Security Report
