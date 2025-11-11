@@ -95,7 +95,7 @@ jobs:
         if [ -f qa_report.json ]; then
           echo "## QA Analysis Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          python3 -c '
+          python3 <<'EOF' >> $GITHUB_STEP_SUMMARY
 import json
 report = json.load(open("qa_report.json"))
 qs = report["quality_score"]
@@ -109,7 +109,7 @@ print(f"**Coverage:** {cp:.1f}%")
 print(f"**Tests:** {tp}/{tt} passing")
 print(f"**Missing Test Files:** {mf}")
 print(f"**Coverage Gaps:** {gc}")
-' >> $GITHUB_STEP_SUMMARY
+EOF
         fi
 
     - name: Send QA Report Email
@@ -155,7 +155,7 @@ print(f"**Coverage Gaps:** {gc}")
         if [ -f security_report.json ]; then
           echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          python3 -c '
+          python3 <<'EOF' >> $GITHUB_STEP_SUMMARY
 import json
 report = json.load(open("security_report.json"))
 summary = report["summary"]
@@ -171,7 +171,7 @@ print(f"- Critical: {crit}")
 print(f"- High: {high}")
 print(f"- Medium: {med}")
 print(f"- Low: {low}")
-' >> $GITHUB_STEP_SUMMARY
+EOF
         fi
 
   lint:
