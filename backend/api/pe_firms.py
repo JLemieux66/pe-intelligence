@@ -11,8 +11,8 @@ router = APIRouter(prefix="/api", tags=["pe-firms"])
 
 
 @router.get("/pe-firms", response_model=List[PEFirmResponse])
-def get_pe_firms(session = Depends(get_session)):
+def get_pe_firms(session=Depends(get_session)):
     """Get all PE firms with statistics"""
-    
+
     with PEFirmService(session) as pe_firm_service:
         return pe_firm_service.get_pe_firms()

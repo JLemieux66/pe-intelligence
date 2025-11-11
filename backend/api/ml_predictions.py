@@ -14,9 +14,9 @@ from sqlalchemy.orm import Session
 # Add ml_pipeline to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "ml_pipeline"))
 
-from data_preprocessing import FeatureEngineer
-from backend.database_pool import get_db
-from backend.services.ml_enrichment_service import MLEnrichmentService
+from data_preprocessing import FeatureEngineer  # noqa: E402
+from backend.database_pool import get_db  # noqa: E402
+from backend.services.ml_enrichment_service import MLEnrichmentService  # noqa: E402
 
 router = APIRouter(prefix="/api/ml", tags=["ML Predictions"])
 

@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api", tags=["investments"])
 @router.get("/companies/{company_id}/investments", response_model=List[InvestmentResponse])
 def get_company_investments(
     company_id: int,
-    session = Depends(get_session)
+    session=Depends(get_session)
 ):
     """Get all investments for a specific company"""
     with InvestmentService(session) as investment_service:
@@ -30,9 +30,9 @@ def get_investments(
     pe_firm: Optional[str] = Query(None, description="Filter by PE firm name(s), comma-separated for multiple"),
     status: Optional[str] = Query(None, description="Filter by status (Active/Exit)"),
     exit_type: Optional[str] = Query(None, description="Filter by exit type (IPO/Acquisition)"),
-    industry: Optional[str] = Query(None, description="Filter by industry category(ies), comma-separated for multiple"),
-    industry_group: Optional[str] = Query(None, description="Filter by PitchBook industry group(s), comma-separated for multiple"),
-    industry_sector: Optional[str] = Query(None, description="Filter by PitchBook industry sector(s), comma-separated for multiple"),
+    industry: Optional[str] = Query(None, description="Filter by industry(ies), comma-separated"),
+    industry_group: Optional[str] = Query(None, description="Filter by PitchBook industry group(s)"),
+    industry_sector: Optional[str] = Query(None, description="Filter by PitchBook industry sector(s)"),
     verticals: Optional[str] = Query(None, description="Filter by PitchBook verticals, comma-separated for multiple"),
     country: Optional[str] = Query(None, description="Filter by country/countries, comma-separated for multiple"),
     state_region: Optional[str] = Query(None, description="Filter by state/region(s), comma-separated for multiple"),
@@ -44,10 +44,10 @@ def get_investments(
     search: Optional[str] = Query(None, description="Search company names"),
     limit: int = Query(10000, ge=1, le=10000, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
-    session = Depends(get_session)
+    session=Depends(get_session)
 ):
     """Get all investments with filters (supports multi-select with comma-separated values)"""
-    
+
     # Build filters dictionary
     filters = {
         'pe_firm': pe_firm,
@@ -66,16 +66,16 @@ def get_investments(
         'max_employees': max_employees,
         'search': search
     }
-    
+
     # Use service to get investments
     with InvestmentService(session) as investment_service:
         return investment_service.get_investments(filters, limit, offset)
 
 
 @router.put("/investments/{investment_id}", dependencies=[Depends(verify_admin_token)])
-async def update_investment(investment_id: int, investment_update: InvestmentUpdate, session = Depends(get_session)):
+async def update_investment(investment_id: int, investment_update: InvestmentUpdate, session=Depends(get_session)):
     """Update investment details (Admin only)"""
-    
+
     with InvestmentService(session) as investment_service:
         success = investment_service.update_investment(investment_id, investment_update)
         if not success:

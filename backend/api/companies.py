@@ -1,11 +1,11 @@
 """
 Companies API endpoints
 """
-from typing import Optional, List, Dict
+from typing import Optional, List
 from fastapi import APIRouter, Query, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from backend.schemas.responses import CompanyResponse, SimilarCompaniesResponse
-from backend.schemas.requests import CompanyUpdate, SimilarCompaniesRequest
+from backend.schemas.responses import CompanyResponse
+from backend.schemas.requests import CompanyUpdate
 from backend.services import CompanyService
 from src.models.database_models_v2 import get_session
 from backend.auth import verify_admin_token
@@ -21,36 +21,36 @@ router = APIRouter(prefix="/api", tags=["companies"])
 def get_companies(
     response: Response,
     search: Optional[str] = Query(None, description="Search company names"),
-    pe_firm: Optional[str] = Query(None, description="Filter by PE firm name(s), comma-separated for multiple"),
-    pe_firm_filter_mode: Optional[str] = Query("or", description="Filter mode for PE firms: 'or' (any), 'and' (all), or 'exact' (exactly these)"),
+    pe_firm: Optional[str] = Query(None, description="Filter by PE firm(s), comma-separated"),
+    pe_firm_filter_mode: Optional[str] = Query("or", description="PE firm filter: 'or'/'and'/'exact'"),
     status: Optional[str] = Query(None, description="Filter by status (Active/Exit)"),
-    industry: Optional[str] = Query(None, description="Filter by industry category(ies), comma-separated for multiple"),
-    industry_filter_mode: Optional[str] = Query("or", description="Filter mode for industries: 'or' (any), 'and' (all), or 'exact' (exactly these)"),
-    industry_group: Optional[str] = Query(None, description="Filter by PitchBook industry group(s), comma-separated for multiple"),
-    industry_group_filter_mode: Optional[str] = Query("or", description="Filter mode for industry groups: 'or' (any), 'and' (all), or 'exact' (exactly these)"),
-    industry_sector: Optional[str] = Query(None, description="Filter by PitchBook industry sector(s), comma-separated for multiple"),
-    industry_sector_filter_mode: Optional[str] = Query("or", description="Filter mode for industry sectors: 'or' (any), 'and' (all), or 'exact' (exactly these)"),
-    verticals: Optional[str] = Query(None, description="Filter by PitchBook verticals, comma-separated for multiple"),
-    verticals_filter_mode: Optional[str] = Query("or", description="Filter mode for verticals: 'or' (any), 'and' (all), or 'exact' (exactly these)"),
-    country: Optional[str] = Query(None, description="Filter by country/countries, comma-separated for multiple"),
-    country_filter_mode: Optional[str] = Query("or", description="Filter mode for countries: 'or' (any), 'and' (all), or 'exact' (exactly these)"),
-    state_region: Optional[str] = Query(None, description="Filter by state/region(s), comma-separated for multiple"),
-    state_region_filter_mode: Optional[str] = Query("or", description="Filter mode for states/regions: 'or' (any), 'and' (all), or 'exact' (exactly these)"),
-    city: Optional[str] = Query(None, description="Filter by city/cities, comma-separated for multiple"),
-    city_filter_mode: Optional[str] = Query("or", description="Filter mode for cities: 'or' (any), 'and' (all), or 'exact' (exactly these)"),
-    revenue_range: Optional[str] = Query(None, description="Filter by revenue range(s), comma-separated for multiple"),
-    min_revenue: Optional[float] = Query(None, description="Minimum revenue in millions USD (checks both current_revenue_usd and predicted_revenue)"),
-    max_revenue: Optional[float] = Query(None, description="Maximum revenue in millions USD (checks both current_revenue_usd and predicted_revenue)"),
-    employee_count: Optional[str] = Query(None, description="Filter by employee count range(s), comma-separated for multiple"),
+    industry: Optional[str] = Query(None, description="Filter by industry(ies), comma-separated"),
+    industry_filter_mode: Optional[str] = Query("or", description="Industry filter: 'or'/'and'/'exact'"),
+    industry_group: Optional[str] = Query(None, description="Filter by PitchBook industry group(s)"),
+    industry_group_filter_mode: Optional[str] = Query("or", description="Industry group filter: 'or'/'and'/'exact'"),
+    industry_sector: Optional[str] = Query(None, description="Filter by PitchBook industry sector(s)"),
+    industry_sector_filter_mode: Optional[str] = Query("or", description="Industry sector filter: 'or'/'and'/'exact'"),
+    verticals: Optional[str] = Query(None, description="Filter by PitchBook verticals"),
+    verticals_filter_mode: Optional[str] = Query("or", description="Verticals filter: 'or'/'and'/'exact'"),
+    country: Optional[str] = Query(None, description="Filter by country(ies), comma-separated"),
+    country_filter_mode: Optional[str] = Query("or", description="Country filter: 'or'/'and'/'exact'"),
+    state_region: Optional[str] = Query(None, description="Filter by state/region(s)"),
+    state_region_filter_mode: Optional[str] = Query("or", description="State filter: 'or'/'and'/'exact'"),
+    city: Optional[str] = Query(None, description="Filter by city(ies), comma-separated"),
+    city_filter_mode: Optional[str] = Query("or", description="City filter: 'or'/'and'/'exact'"),
+    revenue_range: Optional[str] = Query(None, description="Filter by revenue range(s)"),
+    min_revenue: Optional[float] = Query(None, description="Min revenue in millions USD"),
+    max_revenue: Optional[float] = Query(None, description="Max revenue in millions USD"),
+    employee_count: Optional[str] = Query(None, description="Filter by employee count range(s)"),
     min_employees: Optional[int] = Query(None, description="Minimum employee count"),
     max_employees: Optional[int] = Query(None, description="Maximum employee count"),
     is_public: Optional[bool] = Query(None, description="Filter by public status"),
     limit: int = Query(10000, ge=1, le=10000, description="Number of results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
-    session = Depends(get_session)
+    session=Depends(get_session)
 ):
     """Get companies (deduplicated across PE firms)"""
-    
+
     # Build filters dictionary
     filters = {
         'search': search,
@@ -79,7 +79,7 @@ def get_companies(
         'max_employees': max_employees,
         'is_public': is_public
     }
-    
+
     # Use service to get companies
     with CompanyService(session) as company_service:
         companies, total_count = company_service.get_companies(filters, limit, offset)
@@ -90,7 +90,7 @@ def get_companies(
 @router.get("/companies/export/with-revenue")
 def export_companies_with_revenue(
     response: Response,
-    session = Depends(get_session)
+    session=Depends(get_session)
 ):
     """
     Export ALL companies WITH PitchBook revenue data as CSV for ML training.
@@ -270,9 +270,9 @@ def export_companies_with_revenue(
 
 
 @router.get("/companies/{company_id}", response_model=CompanyResponse)
-def get_company(company_id: int, session = Depends(get_session)):
+def get_company(company_id: int, session=Depends(get_session)):
     """Get a single company by ID"""
-    
+
     with CompanyService(session) as company_service:
         company = company_service.get_company_by_id(company_id)
         if not company:
@@ -281,9 +281,9 @@ def get_company(company_id: int, session = Depends(get_session)):
 
 
 @router.put("/companies/{company_id}", dependencies=[Depends(verify_admin_token)])
-async def update_company(company_id: int, company_update: CompanyUpdate, session = Depends(get_session)):
+async def update_company(company_id: int, company_update: CompanyUpdate, session=Depends(get_session)):
     """Update company details (Admin only)"""
-    
+
     with CompanyService(session) as company_service:
         success = company_service.update_company(company_id, company_update)
         if not success:
@@ -303,7 +303,7 @@ async def delete_company(company_id: int):
 
 
 @router.get("/companies/{company_id}/funding-rounds")
-def get_company_funding_rounds(company_id: int, session = Depends(get_session)):
+def get_company_funding_rounds(company_id: int, session=Depends(get_session)):
     """Get funding rounds for a specific company"""
     from src.models.database_models_v2 import Company, FundingRound
 
