@@ -21,6 +21,8 @@ router = APIRouter(prefix="/api", tags=["companies"])
 def get_companies(
     response: Response,
     search: Optional[str] = Query(None, description="Search company names"),
+    search_mode: str = Query("contains", description="Search mode: 'contains' (partial match) or 'exact' (exact match)"),
+    filter_mode: str = Query("any", description="Multi-select filter mode: 'any' (OR logic) or 'all' (AND logic)"),
     pe_firm: Optional[str] = Query(None, description="Filter by PE firm name(s), comma-separated for multiple"),
     status: Optional[str] = Query(None, description="Filter by status (Active/Exit)"),
     industry: Optional[str] = Query(None, description="Filter by industry category(ies), comma-separated for multiple"),
@@ -46,6 +48,8 @@ def get_companies(
     # Build filters dictionary
     filters = {
         'search': search,
+        'search_mode': search_mode,
+        'filter_mode': filter_mode,
         'pe_firm': pe_firm,
         'status': status,
         'industry': industry,

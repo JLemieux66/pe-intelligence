@@ -112,6 +112,8 @@ export interface CompanyFilters {
   exit_type?: string
   industry?: string
   search?: string
+  search_mode?: 'contains' | 'exact'  // Search mode: contains (partial) or exact match
+  filter_mode?: 'any' | 'all'  // Multi-select filter mode: any (OR) or all (AND)
   limit?: number
   offset?: number
   // PitchBook filters
