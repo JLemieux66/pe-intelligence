@@ -42,6 +42,17 @@ def get_investments(
     min_employees: Optional[int] = Query(None, description="Minimum employee count"),
     max_employees: Optional[int] = Query(None, description="Maximum employee count"),
     search: Optional[str] = Query(None, description="Search company names"),
+    # Filter operators
+    filter_operator: Optional[str] = Query("AND", description="Global operator for combining filters (AND/OR)"),
+    search_exact: Optional[bool] = Query(False, description="Use exact matching for search (default: False for partial match)"),
+    pe_firm_operator: Optional[str] = Query("OR", description="Operator for multiple PE firms (AND/OR)"),
+    industry_operator: Optional[str] = Query("OR", description="Operator for multiple industries (AND/OR)"),
+    industry_group_operator: Optional[str] = Query("OR", description="Operator for multiple industry groups (AND/OR)"),
+    industry_sector_operator: Optional[str] = Query("OR", description="Operator for multiple industry sectors (AND/OR)"),
+    verticals_operator: Optional[str] = Query("OR", description="Operator for multiple verticals (AND/OR)"),
+    country_operator: Optional[str] = Query("OR", description="Operator for multiple countries (AND/OR)"),
+    state_region_operator: Optional[str] = Query("OR", description="Operator for multiple states (AND/OR)"),
+    city_operator: Optional[str] = Query("OR", description="Operator for multiple cities (AND/OR)"),
     limit: int = Query(10000, ge=1, le=10000, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     session = Depends(get_session)
@@ -64,7 +75,18 @@ def get_investments(
         'max_revenue': max_revenue,
         'min_employees': min_employees,
         'max_employees': max_employees,
-        'search': search
+        'search': search,
+        # Filter operators
+        'filter_operator': filter_operator,
+        'search_exact': search_exact,
+        'pe_firm_operator': pe_firm_operator,
+        'industry_operator': industry_operator,
+        'industry_group_operator': industry_group_operator,
+        'industry_sector_operator': industry_sector_operator,
+        'verticals_operator': verticals_operator,
+        'country_operator': country_operator,
+        'state_region_operator': state_region_operator,
+        'city_operator': city_operator
     }
     
     # Use service to get investments

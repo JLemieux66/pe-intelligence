@@ -106,6 +106,8 @@ export interface Stats {
   enrichment_rate: number
 }
 
+export type FilterOperator = 'AND' | 'OR'
+
 export interface CompanyFilters {
   pe_firm?: string
   status?: string
@@ -128,6 +130,17 @@ export interface CompanyFilters {
   min_employees?: number
   max_employees?: number
   min_confidence?: number
+  // Filter operators
+  filter_operator?: FilterOperator  // Global AND/OR for combining different filter types
+  search_exact?: boolean  // Exact match for search text
+  pe_firm_operator?: FilterOperator  // AND/OR for multiple PE firms
+  industry_operator?: FilterOperator  // AND/OR for multiple industries
+  industry_group_operator?: FilterOperator  // AND/OR for multiple industry groups
+  industry_sector_operator?: FilterOperator  // AND/OR for multiple industry sectors
+  verticals_operator?: FilterOperator  // AND/OR for multiple verticals
+  country_operator?: FilterOperator  // AND/OR for multiple countries
+  state_region_operator?: FilterOperator  // AND/OR for multiple states
+  city_operator?: FilterOperator  // AND/OR for multiple cities
 }
 
 export interface LocationData {

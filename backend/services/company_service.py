@@ -3,7 +3,7 @@ Company service for business logic and data processing
 OPTIMIZED: Uses eager loading to prevent N+1 query problems
 """
 from typing import Optional, List, Dict, Any, Tuple
-from sqlalchemy import or_, func, desc
+from sqlalchemy import or_, and_, func, desc
 from sqlalchemy.orm import Session, joinedload, selectinload
 from backend.services.base import BaseService
 from backend.schemas.responses import CompanyResponse
@@ -241,144 +241,326 @@ class CompanyService(BaseService):
         """
         Apply all filters to a company query.
         OPTIMIZED: Uses full-text search for PostgreSQL.
+        ENHANCED: Supports AND/OR/EXACT operators for advanced filtering.
         """
+        # Get operator settings (default to backward-compatible behavior)
+        filter_operator = filters.get('filter_operator', 'AND').upper()
+        search_exact = filters.get('search_exact', False)
+
+        # Collect all filter conditions if using global OR operator
+        all_conditions = []
 
         # Search filter - OPTIMIZED with full-text search for PostgreSQL
         if filters.get('search'):
             search_term = filters['search'].strip()
 
-            # Try full-text search for PostgreSQL
-            if self._is_postgresql():
-                try:
-                    # Use PostgreSQL full-text search (10-50x faster than ILIKE)
-                    from sqlalchemy import func as sql_func
-                    from sqlalchemy.dialects.postgresql import TSVECTOR
+            if search_exact:
+                # Exact match
+                search_condition = Company.name == search_term
+            else:
+                # Partial match - Try full-text search for PostgreSQL
+                if self._is_postgresql():
+                    try:
+                        # Use PostgreSQL full-text search (10-50x faster than ILIKE)
+                        from sqlalchemy import func as sql_func
+                        from sqlalchemy.dialects.postgresql import TSVECTOR
 
-                    # Convert search term to tsquery format
-                    # Replace spaces with '&' for AND search
-                    tsquery_term = ' & '.join(search_term.split())
+                        # Convert search term to tsquery format
+                        # Replace spaces with '&' for AND search
+                        tsquery_term = ' & '.join(search_term.split())
 
-                    # Check if search_vector column exists
-                    if hasattr(Company, 'search_vector'):
-                        query = query.filter(
-                            sql_func.to_tsvector('english', Company.name).op('@@')(
+                        # Check if search_vector column exists
+                        if hasattr(Company, 'search_vector'):
+                            search_condition = sql_func.to_tsvector('english', Company.name).op('@@')(
                                 sql_func.to_tsquery('english', tsquery_term)
                             )
-                        )
-                    else:
-                        # Fallback to ILIKE if search_vector not available
-                        query = query.filter(Company.name.ilike(f"%{search_term}%"))
-                except Exception:
-                    # Fallback to ILIKE on error
-                    query = query.filter(Company.name.ilike(f"%{search_term}%"))
-            else:
-                # Use ILIKE for SQLite or other databases
-                query = query.filter(Company.name.ilike(f"%{search_term}%"))
+                        else:
+                            # Fallback to ILIKE if search_vector not available
+                            search_condition = Company.name.ilike(f"%{search_term}%")
+                    except Exception:
+                        # Fallback to ILIKE on error
+                        search_condition = Company.name.ilike(f"%{search_term}%")
+                else:
+                    # Use ILIKE for SQLite or other databases
+                    search_condition = Company.name.ilike(f"%{search_term}%")
 
-        # PE Firm filter
+            if filter_operator == 'OR':
+                all_conditions.append(search_condition)
+            else:
+                query = query.filter(search_condition)
+
+        # PE Firm filter with operator support
         if filters.get('pe_firm'):
             pe_firms = [f.strip() for f in filters['pe_firm'].split(',')]
-            firm_conditions = [PEFirm.name.ilike(f"%{firm}%") for firm in pe_firms]
-            query = query.filter(or_(*firm_conditions))
+            pe_firm_operator = filters.get('pe_firm_operator', 'OR').upper()
+
+            if search_exact:
+                firm_conditions = [PEFirm.name == firm for firm in pe_firms]
+            else:
+                firm_conditions = [PEFirm.name.ilike(f"%{firm}%") for firm in pe_firms]
+
+            if pe_firm_operator == 'AND':
+                # For AND: company must have investments from ALL specified firms
+                for firm_cond in firm_conditions:
+                    query = query.filter(
+                        Company.id.in_(
+                            self.session.query(Company.id)
+                            .join(CompanyPEInvestment)
+                            .join(PEFirm)
+                            .filter(firm_cond)
+                        )
+                    )
+            else:
+                # For OR: company must have investment from ANY specified firm
+                pe_firm_condition = or_(*firm_conditions)
+                if filter_operator == 'OR':
+                    all_conditions.append(pe_firm_condition)
+                else:
+                    query = query.filter(pe_firm_condition)
 
         # Status filter
         if filters.get('status'):
-            query = query.filter(CompanyPEInvestment.computed_status.ilike(f"%{filters['status']}%"))
+            status_condition = CompanyPEInvestment.computed_status.ilike(f"%{filters['status']}%")
+            if filter_operator == 'OR':
+                all_conditions.append(status_condition)
+            else:
+                query = query.filter(status_condition)
 
-        # Industry filter
+        # Industry filter with operator support
         if filters.get('industry'):
             industries = [i.strip() for i in filters['industry'].split(',')]
-            query = query.join(CompanyTag, Company.id == CompanyTag.company_id).filter(
-                CompanyTag.tag_category == 'industry',
-                CompanyTag.tag_value.in_(industries)
-            ).distinct()
+            industry_operator = filters.get('industry_operator', 'OR').upper()
 
-        # PitchBook filters
+            if industry_operator == 'AND':
+                # For AND: company must have ALL specified industry tags
+                for industry in industries:
+                    query = query.filter(
+                        Company.id.in_(
+                            self.session.query(CompanyTag.company_id)
+                            .filter(
+                                CompanyTag.tag_category == 'industry',
+                                CompanyTag.tag_value == industry
+                            )
+                        )
+                    )
+            else:
+                # For OR: company must have ANY specified industry tag
+                industry_condition = Company.id.in_(
+                    self.session.query(CompanyTag.company_id)
+                    .filter(
+                        CompanyTag.tag_category == 'industry',
+                        CompanyTag.tag_value.in_(industries)
+                    )
+                )
+                if filter_operator == 'OR':
+                    all_conditions.append(industry_condition)
+                else:
+                    query = query.filter(industry_condition)
+
+        # PitchBook filters with operator support
         if filters.get('industry_group'):
             groups = [g.strip() for g in filters['industry_group'].split(',')]
-            query = query.filter(
-                Company.primary_industry_group != None,
-                Company.primary_industry_group.in_(groups)
-            )
+            industry_group_operator = filters.get('industry_group_operator', 'OR').upper()
+
+            if industry_group_operator == 'AND':
+                # For AND: must match ALL groups (unusual case, but supported)
+                group_conditions = [Company.primary_industry_group == g for g in groups]
+                group_condition = and_(
+                    Company.primary_industry_group != None,
+                    and_(*group_conditions)
+                )
+            else:
+                # For OR: must match ANY group
+                group_condition = and_(
+                    Company.primary_industry_group != None,
+                    Company.primary_industry_group.in_(groups)
+                )
+
+            if filter_operator == 'OR':
+                all_conditions.append(group_condition)
+            else:
+                query = query.filter(group_condition)
 
         if filters.get('industry_sector'):
             sectors = [s.strip() for s in filters['industry_sector'].split(',')]
-            query = query.filter(
-                Company.primary_industry_sector != None,
-                Company.primary_industry_sector.in_(sectors)
-            )
+            industry_sector_operator = filters.get('industry_sector_operator', 'OR').upper()
+
+            if industry_sector_operator == 'AND':
+                sector_conditions = [Company.primary_industry_sector == s for s in sectors]
+                sector_condition = and_(
+                    Company.primary_industry_sector != None,
+                    and_(*sector_conditions)
+                )
+            else:
+                sector_condition = and_(
+                    Company.primary_industry_sector != None,
+                    Company.primary_industry_sector.in_(sectors)
+                )
+
+            if filter_operator == 'OR':
+                all_conditions.append(sector_condition)
+            else:
+                query = query.filter(sector_condition)
 
         if filters.get('verticals'):
             vertical_list = [v.strip() for v in filters['verticals'].split(',')]
-            vertical_conditions = [Company.verticals.ilike(f"%{v}%") for v in vertical_list]
-            query = query.filter(
-                Company.verticals != None,
-                or_(*vertical_conditions)
-            )
+            verticals_operator = filters.get('verticals_operator', 'OR').upper()
 
-        # Location filters
+            if search_exact:
+                vertical_conditions = [Company.verticals == v for v in vertical_list]
+            else:
+                vertical_conditions = [Company.verticals.ilike(f"%{v}%") for v in vertical_list]
+
+            if verticals_operator == 'AND':
+                verticals_condition = and_(
+                    Company.verticals != None,
+                    and_(*vertical_conditions)
+                )
+            else:
+                verticals_condition = and_(
+                    Company.verticals != None,
+                    or_(*vertical_conditions)
+                )
+
+            if filter_operator == 'OR':
+                all_conditions.append(verticals_condition)
+            else:
+                query = query.filter(verticals_condition)
+
+        # Location filters with operator support
         if filters.get('country'):
             countries = [c.strip() for c in filters['country'].split(',')]
-            query = query.filter(
-                Company.country != None,
-                Company.country.in_(countries)
-            )
+            country_operator = filters.get('country_operator', 'OR').upper()
+
+            if country_operator == 'AND':
+                # For AND on countries (unusual), must match all
+                country_conditions = [Company.country == c for c in countries]
+                country_condition = and_(
+                    Company.country != None,
+                    and_(*country_conditions)
+                )
+            else:
+                country_condition = and_(
+                    Company.country != None,
+                    Company.country.in_(countries)
+                )
+
+            if filter_operator == 'OR':
+                all_conditions.append(country_condition)
+            else:
+                query = query.filter(country_condition)
 
         if filters.get('state_region'):
             states = [s.strip() for s in filters['state_region'].split(',')]
-            query = query.filter(
-                Company.state_region != None,
-                Company.state_region.in_(states)
-            )
+            state_region_operator = filters.get('state_region_operator', 'OR').upper()
+
+            if state_region_operator == 'AND':
+                state_conditions = [Company.state_region == s for s in states]
+                state_condition = and_(
+                    Company.state_region != None,
+                    and_(*state_conditions)
+                )
+            else:
+                state_condition = and_(
+                    Company.state_region != None,
+                    Company.state_region.in_(states)
+                )
+
+            if filter_operator == 'OR':
+                all_conditions.append(state_condition)
+            else:
+                query = query.filter(state_condition)
 
         if filters.get('city'):
             cities = [c.strip() for c in filters['city'].split(',')]
-            query = query.filter(
-                Company.city != None,
-                Company.city.in_(cities)
-            )
+            city_operator = filters.get('city_operator', 'OR').upper()
+
+            if city_operator == 'AND':
+                city_conditions = [Company.city == c for c in cities]
+                city_condition = and_(
+                    Company.city != None,
+                    and_(*city_conditions)
+                )
+            else:
+                city_condition = and_(
+                    Company.city != None,
+                    Company.city.in_(cities)
+                )
+
+            if filter_operator == 'OR':
+                all_conditions.append(city_condition)
+            else:
+                query = query.filter(city_condition)
 
         # Revenue filters
         if filters.get('revenue_range'):
             ranges = [r.strip() for r in filters['revenue_range'].split(',')]
             range_codes = [self.REVENUE_RANGE_CODES.get(r) for r in ranges if self.REVENUE_RANGE_CODES.get(r)]
             if range_codes:
-                query = query.filter(Company.revenue_range.in_(range_codes))
+                revenue_condition = Company.revenue_range.in_(range_codes)
+                if filter_operator == 'OR':
+                    all_conditions.append(revenue_condition)
+                else:
+                    query = query.filter(revenue_condition)
 
         if filters.get('min_revenue') is not None:
-            query = query.filter(Company.current_revenue_usd >= filters['min_revenue'])
+            min_revenue_condition = Company.current_revenue_usd >= filters['min_revenue']
+            if filter_operator == 'OR':
+                all_conditions.append(min_revenue_condition)
+            else:
+                query = query.filter(min_revenue_condition)
 
         if filters.get('max_revenue') is not None:
-            query = query.filter(Company.current_revenue_usd <= filters['max_revenue'])
+            max_revenue_condition = Company.current_revenue_usd <= filters['max_revenue']
+            if filter_operator == 'OR':
+                all_conditions.append(max_revenue_condition)
+            else:
+                query = query.filter(max_revenue_condition)
 
         # Employee count filters
         if filters.get('employee_count'):
             ranges = [e.strip() for e in filters['employee_count'].split(',')]
             range_codes = [self.EMPLOYEE_COUNT_CODES.get(r) for r in ranges if self.EMPLOYEE_COUNT_CODES.get(r)]
             if range_codes:
-                query = query.filter(Company.crunchbase_employee_count.in_(range_codes))
+                employee_condition = Company.crunchbase_employee_count.in_(range_codes)
+                if filter_operator == 'OR':
+                    all_conditions.append(employee_condition)
+                else:
+                    query = query.filter(employee_condition)
 
         if filters.get('min_employees') is not None:
-            query = query.filter(
-                or_(
-                    Company.projected_employee_count >= filters['min_employees'],
-                    Company.employee_count >= filters['min_employees'],
-                    Company.crunchbase_employee_count.ilike(f"%{filters['min_employees']}%")
-                )
+            min_emp_condition = or_(
+                Company.projected_employee_count >= filters['min_employees'],
+                Company.employee_count >= filters['min_employees'],
+                Company.crunchbase_employee_count.ilike(f"%{filters['min_employees']}%")
             )
+            if filter_operator == 'OR':
+                all_conditions.append(min_emp_condition)
+            else:
+                query = query.filter(min_emp_condition)
 
         if filters.get('max_employees') is not None:
-            query = query.filter(
-                or_(
-                    Company.projected_employee_count <= filters['max_employees'],
-                    Company.employee_count <= filters['max_employees'],
-                    Company.crunchbase_employee_count.ilike(f"%{filters['max_employees']}%")
-                )
+            max_emp_condition = or_(
+                Company.projected_employee_count <= filters['max_employees'],
+                Company.employee_count <= filters['max_employees'],
+                Company.crunchbase_employee_count.ilike(f"%{filters['max_employees']}%")
             )
+            if filter_operator == 'OR':
+                all_conditions.append(max_emp_condition)
+            else:
+                query = query.filter(max_emp_condition)
 
         # Public status filter
         if filters.get('is_public') is not None:
-            query = query.filter(Company.is_public == filters['is_public'])
+            public_condition = Company.is_public == filters['is_public']
+            if filter_operator == 'OR':
+                all_conditions.append(public_condition)
+            else:
+                query = query.filter(public_condition)
+
+        # Apply global OR operator if specified
+        if filter_operator == 'OR' and all_conditions:
+            query = query.filter(or_(*all_conditions))
 
         return query
     
