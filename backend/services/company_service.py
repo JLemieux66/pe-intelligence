@@ -3,7 +3,7 @@ Company service for business logic and data processing
 OPTIMIZED: Uses eager loading to prevent N+1 query problems
 """
 from typing import Optional, List, Dict, Any, Tuple
-from sqlalchemy import or_, func, desc
+from sqlalchemy import or_, and_, func, desc
 from sqlalchemy.orm import Session, joinedload, selectinload
 from backend.services.base import BaseService
 from backend.schemas.responses import CompanyResponse
@@ -239,103 +239,171 @@ class CompanyService(BaseService):
 
     def apply_filters(self, query, filters: Dict[str, Any]):
         """
-        Apply all filters to a company query.
-        OPTIMIZED: Uses full-text search for PostgreSQL.
+        Apply all filters to a company query with AND/OR/EXACT support.
+        OPTIMIZED: Uses full-text search for PostgreSQL when available.
         """
 
-        # Search filter - OPTIMIZED with full-text search for PostgreSQL
+        # Get filter modes
+        search_mode = filters.get('search_mode', 'contains')  # 'contains' or 'exact'
+        filter_mode = filters.get('filter_mode', 'any')  # 'any' (OR) or 'all' (AND)
+
+        # Search filter with mode support and PostgreSQL optimization
         if filters.get('search'):
             search_term = filters['search'].strip()
 
-            # Try full-text search for PostgreSQL
-            if self._is_postgresql():
-                try:
-                    # Use PostgreSQL full-text search (10-50x faster than ILIKE)
-                    from sqlalchemy import func as sql_func
-                    from sqlalchemy.dialects.postgresql import TSVECTOR
-
-                    # Convert search term to tsquery format
-                    # Replace spaces with '&' for AND search
-                    tsquery_term = ' & '.join(search_term.split())
-
-                    # Check if search_vector column exists
-                    if hasattr(Company, 'search_vector'):
-                        query = query.filter(
-                            sql_func.to_tsvector('english', Company.name).op('@@')(
-                                sql_func.to_tsquery('english', tsquery_term)
-                            )
-                        )
-                    else:
-                        # Fallback to ILIKE if search_vector not available
-                        query = query.filter(Company.name.ilike(f"%{search_term}%"))
-                except Exception:
-                    # Fallback to ILIKE on error
-                    query = query.filter(Company.name.ilike(f"%{search_term}%"))
+            if search_mode == 'exact':
+                # Exact match (case-insensitive) - no PostgreSQL optimization needed
+                query = query.filter(func.lower(Company.name) == func.lower(search_term))
             else:
-                # Use ILIKE for SQLite or other databases
-                query = query.filter(Company.name.ilike(f"%{search_term}%"))
+                # Contains mode - use PostgreSQL full-text search if available
+                if self._is_postgresql():
+                    try:
+                        # Use PostgreSQL full-text search (10-50x faster than ILIKE)
+                        from sqlalchemy import func as sql_func
+                        from sqlalchemy.dialects.postgresql import TSVECTOR
 
-        # PE Firm filter
+                        # Convert search term to tsquery format
+                        tsquery_term = ' & '.join(search_term.split())
+
+                        # Check if search_vector column exists
+                        if hasattr(Company, 'search_vector'):
+                            query = query.filter(
+                                sql_func.to_tsvector('english', Company.name).op('@@')(
+                                    sql_func.to_tsquery('english', tsquery_term)
+                                )
+                            )
+                        else:
+                            # Fallback to ILIKE if search_vector not available
+                            query = query.filter(Company.name.ilike(f"%{search_term}%"))
+                    except Exception:
+                        # Fallback to ILIKE on error
+                        query = query.filter(Company.name.ilike(f"%{search_term}%"))
+                else:
+                    # Use ILIKE for SQLite or other databases
+                    query = query.filter(Company.name.ilike(f"%{search_term}%"))
+
+        # PE Firm filter with AND/OR mode
         if filters.get('pe_firm'):
             pe_firms = [f.strip() for f in filters['pe_firm'].split(',')]
-            firm_conditions = [PEFirm.name.ilike(f"%{firm}%") for firm in pe_firms]
-            query = query.filter(or_(*firm_conditions))
+
+            if filter_mode == 'all' and len(pe_firms) > 1:
+                # AND logic: company must have investments from ALL selected PE firms
+                for firm in pe_firms:
+                    # Create a subquery for each firm
+                    firm_subquery = self.session.query(Company.id).join(
+                        Company.investments
+                    ).join(CompanyPEInvestment.pe_firm).filter(
+                        PEFirm.name.ilike(f"%{firm}%")
+                    ).distinct()
+                    query = query.filter(Company.id.in_(firm_subquery))
+            else:
+                # OR logic (default): match ANY selected firm
+                firm_conditions = [PEFirm.name.ilike(f"%{firm}%") for firm in pe_firms]
+                query = query.filter(or_(*firm_conditions))
 
         # Status filter
         if filters.get('status'):
             query = query.filter(CompanyPEInvestment.computed_status.ilike(f"%{filters['status']}%"))
 
-        # Industry filter
+        # Industry filter with AND/OR mode
         if filters.get('industry'):
             industries = [i.strip() for i in filters['industry'].split(',')]
-            query = query.join(CompanyTag, Company.id == CompanyTag.company_id).filter(
-                CompanyTag.tag_category == 'industry',
-                CompanyTag.tag_value.in_(industries)
-            ).distinct()
 
-        # PitchBook filters
+            if filter_mode == 'all' and len(industries) > 1:
+                # AND logic: company must have ALL selected industry tags
+                for industry in industries:
+                    industry_subquery = self.session.query(Company.id).join(
+                        CompanyTag, Company.id == CompanyTag.company_id
+                    ).filter(
+                        CompanyTag.tag_category == 'industry',
+                        CompanyTag.tag_value == industry
+                    )
+                    query = query.filter(Company.id.in_(industry_subquery))
+            else:
+                # OR logic (default): match ANY selected industry
+                query = query.join(CompanyTag, Company.id == CompanyTag.company_id).filter(
+                    CompanyTag.tag_category == 'industry',
+                    CompanyTag.tag_value.in_(industries)
+                ).distinct()
+
+        # Industry Group filter with AND/OR mode
         if filters.get('industry_group'):
             groups = [g.strip() for g in filters['industry_group'].split(',')]
-            query = query.filter(
-                Company.primary_industry_group != None,
-                Company.primary_industry_group.in_(groups)
-            )
 
+            if filter_mode == 'all' and len(groups) > 1:
+                # AND logic: requires matching all groups (edge case - most companies have one group)
+                # This creates a very restrictive filter
+                and_conditions = [Company.primary_industry_group == group for group in groups]
+                query = query.filter(
+                    Company.primary_industry_group != None,
+                    or_(*and_conditions)  # Since a company can only have one primary group
+                )
+            else:
+                # OR logic (default): match ANY selected group
+                query = query.filter(
+                    Company.primary_industry_group != None,
+                    Company.primary_industry_group.in_(groups)
+                )
+
+        # Industry Sector filter with AND/OR mode
         if filters.get('industry_sector'):
             sectors = [s.strip() for s in filters['industry_sector'].split(',')]
-            query = query.filter(
-                Company.primary_industry_sector != None,
-                Company.primary_industry_sector.in_(sectors)
-            )
 
+            if filter_mode == 'all' and len(sectors) > 1:
+                # AND logic: match all sectors (edge case - most companies have one sector)
+                and_conditions = [Company.primary_industry_sector == sector for sector in sectors]
+                query = query.filter(
+                    Company.primary_industry_sector != None,
+                    or_(*and_conditions)  # Since a company can only have one primary sector
+                )
+            else:
+                # OR logic (default): match ANY selected sector
+                query = query.filter(
+                    Company.primary_industry_sector != None,
+                    Company.primary_industry_sector.in_(sectors)
+                )
+
+        # Verticals filter with AND/OR mode
         if filters.get('verticals'):
             vertical_list = [v.strip() for v in filters['verticals'].split(',')]
-            vertical_conditions = [Company.verticals.ilike(f"%{v}%") for v in vertical_list]
-            query = query.filter(
-                Company.verticals != None,
-                or_(*vertical_conditions)
-            )
 
-        # Location filters
+            if filter_mode == 'all' and len(vertical_list) > 1:
+                # AND logic: company must have ALL selected verticals (in comma-separated field)
+                vertical_conditions = [Company.verticals.ilike(f"%{v}%") for v in vertical_list]
+                query = query.filter(
+                    Company.verticals != None,
+                    and_(*vertical_conditions)
+                )
+            else:
+                # OR logic (default): match ANY selected vertical
+                vertical_conditions = [Company.verticals.ilike(f"%{v}%") for v in vertical_list]
+                query = query.filter(
+                    Company.verticals != None,
+                    or_(*vertical_conditions)
+                )
+
+        # Country filter with AND/OR mode (note: most companies have one country)
         if filters.get('country'):
             countries = [c.strip() for c in filters['country'].split(',')]
             query = query.filter(
                 Company.country != None,
-                Company.country.in_(countries)
+                Company.country.in_(countries)  # Keep as OR - companies typically have one country
             )
 
+        # State filter with AND/OR mode
         if filters.get('state_region'):
             states = [s.strip() for s in filters['state_region'].split(',')]
             query = query.filter(
                 Company.state_region != None,
-                Company.state_region.in_(states)
+                Company.state_region.in_(states)  # Keep as OR - companies typically have one state
             )
 
+        # City filter with AND/OR mode
         if filters.get('city'):
             cities = [c.strip() for c in filters['city'].split(',')]
             query = query.filter(
                 Company.city != None,
-                Company.city.in_(cities)
+                Company.city.in_(cities)  # Keep as OR - companies typically have one city
             )
 
         # Revenue filters

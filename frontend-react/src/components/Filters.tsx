@@ -11,6 +11,8 @@ interface FiltersProps {
 
 export default function Filters({ peFirms, investments = [], onFilterChange }: FiltersProps) {
   const [search, setSearch] = useState('')
+  const [searchMode, setSearchMode] = useState<'contains' | 'exact'>('contains')
+  const [filterMode, setFilterMode] = useState<'any' | 'all'>('any')
   const [selectedFirms, setSelectedFirms] = useState<string[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [selectedExitTypes, setSelectedExitTypes] = useState<string[]>([])
@@ -32,6 +34,8 @@ export default function Filters({ peFirms, investments = [], onFilterChange }: F
   useEffect(() => {
     const filters: CompanyFilters = {}
     if (search) filters.search = search
+    filters.search_mode = searchMode
+    filters.filter_mode = filterMode
     if (selectedFirms.length > 0) filters.pe_firm = selectedFirms.join(',') // Multi-select: comma-separated
     if (selectedStatuses.length > 0) filters.status = selectedStatuses[0]
     if (selectedExitTypes.length > 0) filters.exit_type = selectedExitTypes[0]
@@ -47,7 +51,7 @@ export default function Filters({ peFirms, investments = [], onFilterChange }: F
     if (maxEmployees) filters.max_employees = parseInt(maxEmployees)
     onFilterChange(filters)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, selectedFirms, selectedStatuses, selectedExitTypes, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees])
+  }, [search, searchMode, filterMode, selectedFirms, selectedStatuses, selectedExitTypes, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees])
 
   const toggleSelection = (value: string, currentList: string[], setter: (list: string[]) => void) => {
     if (currentList.includes(value)) {
@@ -124,15 +128,78 @@ export default function Filters({ peFirms, investments = [], onFilterChange }: F
       
       <div className="space-y-4 overflow-y-auto p-5 pt-0">
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search companies..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 bg-gray-50 hover:bg-white transition-colors placeholder:text-gray-400"
-          />
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search companies..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 bg-gray-50 hover:bg-white transition-colors placeholder:text-gray-400"
+            />
+          </div>
+          {/* Search Mode Toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-600">Search:</span>
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5 flex-1">
+              <button
+                onClick={() => setSearchMode('contains')}
+                className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  searchMode === 'contains'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Contains
+              </button>
+              <button
+                onClick={() => setSearchMode('exact')}
+                className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  searchMode === 'exact'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Exact
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Mode Toggle */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Filter className="w-3.5 h-3.5 text-blue-600" />
+            <span className="text-xs font-semibold text-gray-700">Multi-Select Mode</span>
+          </div>
+          <div className="flex items-center bg-white rounded-lg p-0.5 shadow-sm">
+            <button
+              onClick={() => setFilterMode('any')}
+              className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                filterMode === 'any'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-700 hover:text-gray-900'
+              }`}
+              title="Match ANY selected filter (OR logic)"
+            >
+              Match ANY
+            </button>
+            <button
+              onClick={() => setFilterMode('all')}
+              className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                filterMode === 'all'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-700 hover:text-gray-900'
+              }`}
+              title="Match ALL selected filters (AND logic)"
+            >
+              Match ALL
+            </button>
+          </div>
+          <p className="text-xs text-gray-600 mt-2">
+            {filterMode === 'any' ? '🔵 Shows companies matching ANY selected option' : '🟣 Shows companies matching ALL selected options'}
+          </p>
         </div>
 
         {/* Multi-select PE Firms */}

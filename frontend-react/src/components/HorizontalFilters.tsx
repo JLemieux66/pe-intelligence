@@ -11,6 +11,8 @@ interface HorizontalFiltersProps {
 
 export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterChange }: HorizontalFiltersProps) {
   const [search, setSearch] = useState('')
+  const [searchMode, setSearchMode] = useState<'contains' | 'exact'>('contains')
+  const [filterMode, setFilterMode] = useState<'any' | 'all'>('any')
   const [selectedFirms, setSelectedFirms] = useState<string[]>([])
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [selectedIndustryGroups, setSelectedIndustryGroups] = useState<string[]>([])
@@ -23,7 +25,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
   const [maxRevenue, setMaxRevenue] = useState('')
   const [minEmployees, setMinEmployees] = useState('')
   const [maxEmployees, setMaxEmployees] = useState('')
-  
+
   // Dropdown open states
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
@@ -44,6 +46,8 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
   useEffect(() => {
     const filters: CompanyFilters = {}
     if (search) filters.search = search
+    filters.search_mode = searchMode
+    filters.filter_mode = filterMode
     if (selectedFirms.length > 0) filters.pe_firm = selectedFirms.join(',')
     if (selectedStatus) filters.status = selectedStatus
     if (selectedIndustryGroups.length > 0) filters.industry_group = selectedIndustryGroups.join(',')
@@ -57,10 +61,10 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     if (maxRevenue) filters.max_revenue = parseFloat(maxRevenue)
     if (minEmployees) filters.min_employees = parseInt(minEmployees)
     if (maxEmployees) filters.max_employees = parseInt(maxEmployees)
-    
+
     console.log('HorizontalFilters - Applying filters:', filters)
     onFilterChange(filters)
-  }, [search, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, onFilterChange])
+  }, [search, searchMode, filterMode, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, onFilterChange])
 
   const toggleSelection = (value: string, currentList: string[], setter: (list: string[]) => void) => {
     console.log('toggleSelection called', value, 'openDropdown:', openDropdown)
@@ -129,6 +133,56 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white text-gray-900 placeholder:text-gray-400"
             />
+          </div>
+
+          {/* Search Mode Toggle */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setSearchMode('contains')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                searchMode === 'contains'
+                  ? 'bg-white text-blue-700 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Contains
+            </button>
+            <button
+              onClick={() => setSearchMode('exact')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                searchMode === 'exact'
+                  ? 'bg-white text-blue-700 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Exact
+            </button>
+          </div>
+
+          {/* Filter Mode Toggle */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setFilterMode('any')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                filterMode === 'any'
+                  ? 'bg-white text-blue-700 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title="Match ANY selected filter (OR logic)"
+            >
+              Match ANY
+            </button>
+            <button
+              onClick={() => setFilterMode('all')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                filterMode === 'all'
+                  ? 'bg-white text-blue-700 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title="Match ALL selected filters (AND logic)"
+            >
+              Match ALL
+            </button>
           </div>
 
           {/* PE Firms Dropdown */}
