@@ -346,6 +346,7 @@ def create_database_engine():
             database_url,
             echo=False,
             pool_pre_ping=True,     # Verify connections are alive before using
+            connect_args={"check_same_thread": False},  # Allow SQLite to be used across threads
         )
     else:
         # PostgreSQL and other databases support full connection pooling
