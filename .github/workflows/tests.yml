@@ -98,11 +98,17 @@ jobs:
           cat qa_report.json | python3 -c '
         import sys, json
         report = json.load(sys.stdin)
-        print(f"**Quality Score:** {report[\"quality_score\"]}/100")
-        print(f"**Coverage:** {report[\"coverage\"][\"percentage\"]:.1f}%")
-        print(f"**Tests:** {report[\"tests\"][\"passed\"]}/{report[\"tests\"][\"total\"]} passing")
-        print(f"**Missing Test Files:** {report[\"coverage\"][\"missing_files\"]}")
-        print(f"**Coverage Gaps:** {report[\"gaps\"][\"count\"]}")
+        quality_score = report["quality_score"]
+        coverage_pct = report["coverage"]["percentage"]
+        tests_passed = report["tests"]["passed"]
+        tests_total = report["tests"]["total"]
+        missing_files = report["coverage"]["missing_files"]
+        gaps_count = report["gaps"]["count"]
+        print(f"**Quality Score:** {quality_score}/100")
+        print(f"**Coverage:** {coverage_pct:.1f}%")
+        print(f"**Tests:** {tests_passed}/{tests_total} passing")
+        print(f"**Missing Test Files:** {missing_files}")
+        print(f"**Coverage Gaps:** {gaps_count}")
           ' >> $GITHUB_STEP_SUMMARY
         fi
 
@@ -153,12 +159,18 @@ jobs:
         import sys, json
         report = json.load(sys.stdin)
         summary = report["summary"]
-        print(f"**Security Score:** {summary[\"security_score\"]}/100")
-        print(f"**Total Issues:** {summary[\"total_issues\"]}")
-        print(f"- 🔴 Critical: {summary[\"critical\"]}")
-        print(f"- 🟠 High: {summary[\"high\"]}")
-        print(f"- 🟡 Medium: {summary[\"medium\"]}")
-        print(f"- 🟢 Low: {summary[\"low\"]}")
+        security_score = summary["security_score"]
+        total_issues = summary["total_issues"]
+        critical = summary["critical"]
+        high = summary["high"]
+        medium = summary["medium"]
+        low = summary["low"]
+        print(f"**Security Score:** {security_score}/100")
+        print(f"**Total Issues:** {total_issues}")
+        print(f"- 🔴 Critical: {critical}")
+        print(f"- 🟠 High: {high}")
+        print(f"- 🟡 Medium: {medium}")
+        print(f"- 🟢 Low: {low}")
           ' >> $GITHUB_STEP_SUMMARY
         fi
 
