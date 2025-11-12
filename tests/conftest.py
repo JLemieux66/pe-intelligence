@@ -12,7 +12,7 @@ from datetime import datetime
 
 
 # Set test environment variables
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["DATABASE_URL"] = "sqlite:///test_pe_intelligence.db"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["ADMIN_EMAIL"] = "test@admin.com"
 os.environ["ADMIN_PASSWORD_HASH"] = "$2b$12$test.hash.for.testing.only"
@@ -23,7 +23,11 @@ os.environ["ALLOWED_ORIGINS"] = "http://localhost:3000,http://localhost:5173"
 def test_db_engine():
     """Create a test database engine"""
     # Use file-based SQLite for tests to avoid threading issues
-    engine = create_engine("sqlite:///test_pe_intelligence.db", echo=False)
+    engine = create_engine(
+        "sqlite:///test_pe_intelligence.db",
+        echo=False,
+        connect_args={"check_same_thread": False}  # Allow SQLite to be used across threads
+    )
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()

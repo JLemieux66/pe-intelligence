@@ -23,6 +23,20 @@ jobs:
     - name: Install dependencies
       run: pipenv install --dev
     
+    - name: Ensure pytest-asyncio & anyio are available inside pipenv
+      run: pipenv run pip install pytest-asyncio anyio
+    
+    - name: Create persistent test database for CI
+      run: |
+        export DATABASE_URL="sqlite:///test_pe_intelligence.db"
+        pipenv run python - <<'PY'
+        import os
+        os.environ['DATABASE_URL'] = 'sqlite:///test_pe_intelligence.db'
+        from src.models.database_models_v2 import init_database
+        init_database()
+        print('Test DB created at sqlite:///test_pe_intelligence.db')
+        PY
+    
     - name: Run pytest
       run: pipenv run pytest tests/ --cov=backend --cov=src --cov-report=xml
     
