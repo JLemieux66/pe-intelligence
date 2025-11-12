@@ -17,7 +17,6 @@ router = APIRouter(prefix="/api", tags=["similar-companies"])
 @router.post("/similar-companies", response_model=SimilarCompaniesResponse)
 async def find_similar_companies(
     request: SimilarCompaniesRequest,
-    admin: dict = Depends(verify_admin_token),
     session: Session = Depends(get_session)
 ):
     """

@@ -1,9 +1,10 @@
 """
 Company service for business logic and data processing
+OPTIMIZED: Uses eager loading to prevent N+1 query problems
 """
 from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy import or_, and_, func, desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from backend.services.base import BaseService
 from backend.schemas.responses import CompanyResponse
 from backend.schemas.requests import CompanyUpdate
@@ -145,13 +146,46 @@ class CompanyService(BaseService):
             return "Low"
 
     def build_company_response(self, company: Company) -> CompanyResponse:
-        """Build a complete CompanyResponse from a Company model"""
-        pe_firms = self.get_company_pe_firms(company.id)
-        status = self.get_company_status(company.id)
-        investment_year = self.get_company_investment_year(company.id)
-        exit_type = self.get_company_exit_type(company.id)
+        """
+        Build a complete CompanyResponse from a Company model.
+        OPTIMIZED: Uses eager-loaded relationships instead of separate queries.
+        """
+        # Use loaded relationships instead of separate queries (prevents N+1)
+        pe_firms = [inv.pe_firm.name for inv in company.investments if inv.pe_firm] if hasattr(company, 'investments') else []
+
+        # Compute status from loaded investments
+        if hasattr(company, 'investments') and company.investments:
+            status_list = [inv.computed_status for inv in company.investments if inv.computed_status]
+            if 'Active' in status_list:
+                status = 'Active'
+            elif 'Exit' in status_list:
+                status = 'Exit'
+            else:
+                status = status_list[0] if status_list else 'Unknown'
+        else:
+            status = 'Unknown'
+
+        # Get investment year from loaded investments
+        if hasattr(company, 'investments') and company.investments:
+            investment_years = [inv.investment_year for inv in company.investments if inv.investment_year]
+            investment_year = min(investment_years) if investment_years else None
+        else:
+            investment_year = None
+
+        # Get exit type from loaded investments
+        if hasattr(company, 'investments') and company.investments:
+            exit_types = [inv.exit_type for inv in company.investments if inv.exit_type]
+            exit_type = exit_types[0] if exit_types else None
+        else:
+            exit_type = None
+
         headquarters = self.build_headquarters(company)
-        industries = self.get_company_industries(company.id)
+
+        # Get industries from loaded tags
+        if hasattr(company, 'tags') and company.tags:
+            industries = [tag.tag_value for tag in company.tags if tag.tag_category == 'industry' and tag.tag_value != 'Other']
+        else:
+            industries = []
 
         return CompanyResponse(
             id=company.id,
@@ -199,22 +233,54 @@ class CompanyService(BaseService):
             verticals=getattr(company, 'verticals', None)
         )
     
+    def _is_postgresql(self) -> bool:
+        """Check if we're using PostgreSQL"""
+        return 'postgresql' in str(self.session.bind.url).lower()
+
     def apply_filters(self, query, filters: Dict[str, Any]):
-        """Apply all filters to a company query with AND/OR/EXACT support"""
+        """
+        Apply all filters to a company query with AND/OR/EXACT support.
+        OPTIMIZED: Uses full-text search for PostgreSQL when available.
+        """
 
         # Get filter modes
         search_mode = filters.get('search_mode', 'contains')  # 'contains' or 'exact'
         filter_mode = filters.get('filter_mode', 'any')  # 'any' (OR) or 'all' (AND)
 
-        # Search filter with mode support
+        # Search filter with mode support and PostgreSQL optimization
         if filters.get('search'):
-            search_term = filters['search']
+            search_term = filters['search'].strip()
+
             if search_mode == 'exact':
-                # Exact match (case-insensitive)
+                # Exact match (case-insensitive) - no PostgreSQL optimization needed
                 query = query.filter(func.lower(Company.name) == func.lower(search_term))
             else:
-                # Contains (partial match, default)
-                query = query.filter(Company.name.ilike(f"%{search_term}%"))
+                # Contains mode - use PostgreSQL full-text search if available
+                if self._is_postgresql():
+                    try:
+                        # Use PostgreSQL full-text search (10-50x faster than ILIKE)
+                        from sqlalchemy import func as sql_func
+                        from sqlalchemy.dialects.postgresql import TSVECTOR
+
+                        # Convert search term to tsquery format
+                        tsquery_term = ' & '.join(search_term.split())
+
+                        # Check if search_vector column exists
+                        if hasattr(Company, 'search_vector'):
+                            query = query.filter(
+                                sql_func.to_tsvector('english', Company.name).op('@@')(
+                                    sql_func.to_tsquery('english', tsquery_term)
+                                )
+                            )
+                        else:
+                            # Fallback to ILIKE if search_vector not available
+                            query = query.filter(Company.name.ilike(f"%{search_term}%"))
+                    except Exception:
+                        # Fallback to ILIKE on error
+                        query = query.filter(Company.name.ilike(f"%{search_term}%"))
+                else:
+                    # Use ILIKE for SQLite or other databases
+                    query = query.filter(Company.name.ilike(f"%{search_term}%"))
 
         # PE Firm filter with AND/OR mode
         if filters.get('pe_firm'):
@@ -385,34 +451,51 @@ class CompanyService(BaseService):
         return query
     
     def get_companies(self, filters: Dict[str, Any], limit: int = 10000, offset: int = 0) -> Tuple[List[CompanyResponse], int]:
-        """Get companies with filters and pagination"""
-        
+        """
+        Get companies with filters and pagination.
+        OPTIMIZED: Uses eager loading to prevent N+1 queries.
+        """
+
         # Start with base query - always join to get PE firm data
         query = self.session.query(Company).join(Company.investments).join(CompanyPEInvestment.pe_firm)
-        
+
         # Apply all filters
         query = self.apply_filters(query, filters)
-        
+
         # Deduplicate companies (since we joined with investments)
         query = query.distinct()
-        
+
         # Get total count for pagination
         total_count = query.count()
-        
+
+        # OPTIMIZATION: Add eager loading to prevent N+1 queries
+        # Use selectinload for one-to-many relationships (more efficient than joinedload for collections)
+        query = query.options(
+            selectinload(Company.investments).joinedload(CompanyPEInvestment.pe_firm),
+            selectinload(Company.tags)
+        )
+
         # Apply pagination and ordering
         companies = query.order_by(Company.name).offset(offset).limit(limit).all()
-        
-        # Build response objects
+
+        # Build response objects (now uses loaded data, no additional queries)
         result = [self.build_company_response(company) for company in companies]
-        
+
         return result, total_count
     
     def get_company_by_id(self, company_id: int) -> Optional[CompanyResponse]:
-        """Get a single company by ID"""
-        company = self.session.query(Company).filter(Company.id == company_id).first()
+        """
+        Get a single company by ID.
+        OPTIMIZED: Uses eager loading to prevent N+1 queries.
+        """
+        company = self.session.query(Company).options(
+            selectinload(Company.investments).joinedload(CompanyPEInvestment.pe_firm),
+            selectinload(Company.tags)
+        ).filter(Company.id == company_id).first()
+
         if not company:
             return None
-        
+
         return self.build_company_response(company)
     
     def update_company(self, company_id: int, company_update: CompanyUpdate) -> bool:

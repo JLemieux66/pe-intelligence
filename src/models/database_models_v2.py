@@ -118,10 +118,14 @@ class Company(Base):
     tags = relationship("CompanyTag", back_populates="company", cascade="all, delete-orphan")
     funding_rounds = relationship("FundingRound", backref="company", cascade="all, delete-orphan")
 
-    # Indexes
+    # Indexes - OPTIMIZED for common query patterns
     __table_args__ = (
         Index("idx_name_website", "name", "website"),
         Index("idx_industry_public", "industry_category", "is_public"),
+        # OPTIMIZATION: Add indexes for frequently filtered/sorted columns
+        Index("idx_primary_sector", "primary_industry_sector"),  # Used in similar companies filtering
+        Index("idx_country_sector", "country", "primary_industry_sector"),  # Composite for similarity queries
+        Index("idx_hq_country", "hq_country"),  # Used in location filtering
     )
 
     def __repr__(self):
@@ -346,6 +350,7 @@ def create_database_engine():
             database_url,
             echo=False,
             pool_pre_ping=True,     # Verify connections are alive before using
+            connect_args={"check_same_thread": False},  # Allow SQLite to be used across threads
         )
     else:
         # PostgreSQL and other databases support full connection pooling

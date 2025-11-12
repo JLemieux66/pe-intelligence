@@ -47,6 +47,8 @@ pytest = "*"
 pytest-cov = "*"
 httpx = "*"
 faker = "*"
+pytest-asyncio = "*"
+anyio = "*"
 
 [requires]
 python_version = "3.11"
