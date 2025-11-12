@@ -3,11 +3,15 @@ Company service for business logic and data processing
 OPTIMIZED: Uses eager loading to prevent N+1 query problems
 """
 from typing import Optional, List, Dict, Any, Tuple
+from datetime import datetime, date
 from sqlalchemy import or_, func, desc
 from sqlalchemy.orm import Session, joinedload, selectinload
 from backend.services.base import BaseService
 from backend.schemas.responses import CompanyResponse
-from backend.schemas.requests import CompanyUpdate
+from backend.schemas.requests import (
+    CompanyUpdate, CompanyCreate, CompanyTagCreate,
+    FundingRoundCreate, PEInvestmentCreate
+)
 from src.models.database_models_v2 import (
     Company, CompanyPEInvestment, PEFirm, CompanyTag, FundingRound
 )
@@ -492,22 +496,204 @@ class CompanyService(BaseService):
         company = self.session.query(Company).filter(Company.id == company_id).first()
         if not company:
             return False
-        
+
         try:
             # Delete related investments first
             self.session.query(CompanyPEInvestment).filter(CompanyPEInvestment.company_id == company_id).delete()
-            
+
             # Delete company tags
             self.session.query(CompanyTag).filter(CompanyTag.company_id == company_id).delete()
-            
+
             # Delete funding rounds
             self.session.query(FundingRound).filter(FundingRound.company_id == company_id).delete()
-            
+
             # Delete the company
             self.session.delete(company)
             self.session.commit()
-            
+
             return True
         except Exception:
             self.session.rollback()
             return False
+
+    def _parse_date(self, date_str: Optional[str]) -> Optional[date]:
+        """Parse date string in YYYY-MM-DD format to date object"""
+        if not date_str:
+            return None
+        try:
+            return datetime.strptime(date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return None
+
+    def _get_or_create_pe_firm(self, firm_name: str) -> Optional[PEFirm]:
+        """Get existing PE firm or create a new one"""
+        pe_firm = self.session.query(PEFirm).filter(PEFirm.name == firm_name).first()
+        if not pe_firm:
+            pe_firm = PEFirm(
+                name=firm_name,
+                total_companies=0,
+                current_portfolio_count=0,
+                exited_portfolio_count=0,
+                last_scraped=datetime.utcnow()
+            )
+            self.session.add(pe_firm)
+            self.session.flush()  # Get the ID without committing
+        return pe_firm
+
+    def create_company(self, company_create: CompanyCreate) -> Optional[CompanyResponse]:
+        """
+        Create a new company with all associated data.
+
+        Args:
+            company_create: Company creation request with all fields
+
+        Returns:
+            CompanyResponse if successful, None if company already exists or error occurs
+        """
+        try:
+            # Check if company already exists (by name and website)
+            existing_query = self.session.query(Company).filter(Company.name == company_create.name)
+            if company_create.website:
+                existing_query = existing_query.filter(Company.website == company_create.website)
+            existing = existing_query.first()
+
+            if existing:
+                return None  # Company already exists
+
+            # Create new company
+            new_company = Company(
+                # Required fields
+                name=company_create.name,
+
+                # Basic information
+                former_name=company_create.former_name,
+                description=company_create.description,
+                website=company_create.website,
+                linkedin_url=company_create.linkedin_url,
+                crunchbase_url=company_create.crunchbase_url,
+
+                # Geographic data
+                country=company_create.country,
+                state_region=company_create.state_region,
+                city=company_create.city,
+                hq_location=company_create.hq_location,
+                hq_country=company_create.hq_country,
+
+                # Categorization
+                industry_category=company_create.industry_category,
+                primary_industry_group=company_create.primary_industry_group,
+                primary_industry_sector=company_create.primary_industry_sector,
+                verticals=company_create.verticals,
+                founded_year=company_create.founded_year,
+
+                # Employee data
+                employee_count=company_create.employee_count,
+                projected_employee_count=company_create.projected_employee_count,
+                crunchbase_employee_count=company_create.crunchbase_employee_count,
+
+                # Revenue data
+                revenue_range=company_create.revenue_range,
+                current_revenue_usd=company_create.current_revenue_usd,
+                predicted_revenue=company_create.predicted_revenue,
+                prediction_confidence=company_create.prediction_confidence,
+
+                # Funding data
+                total_funding_usd=company_create.total_funding_usd,
+                num_funding_rounds=company_create.num_funding_rounds,
+                latest_funding_type=company_create.latest_funding_type,
+                latest_funding_date=self._parse_date(company_create.latest_funding_date),
+                months_since_last_funding=company_create.months_since_last_funding,
+                funding_stage_encoded=company_create.funding_stage_encoded,
+                avg_round_size_usd=company_create.avg_round_size_usd,
+                total_investors=company_create.total_investors,
+
+                # IPO/Exit information
+                is_public=company_create.is_public,
+                ipo_ticker=company_create.ipo_ticker,
+                ipo_date=self._parse_date(company_create.ipo_date),
+                ipo_exchange=company_create.ipo_exchange,
+
+                # PitchBook data
+                investor_name=company_create.investor_name,
+                investor_status=company_create.investor_status,
+                investor_holding=company_create.investor_holding,
+                last_known_valuation_usd=company_create.last_known_valuation_usd,
+                last_financing_date=self._parse_date(company_create.last_financing_date),
+                last_financing_size_usd=company_create.last_financing_size_usd,
+                last_financing_deal_type=company_create.last_financing_deal_type,
+                financing_status_note=company_create.financing_status_note,
+
+                # Categorization fields
+                company_size_category=company_create.company_size_category,
+                revenue_tier=company_create.revenue_tier,
+
+                # Timestamps
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+
+            self.session.add(new_company)
+            self.session.flush()  # Get the company ID
+
+            # Create associated tags
+            if company_create.tags:
+                for tag_data in company_create.tags:
+                    tag = CompanyTag(
+                        company_id=new_company.id,
+                        tag_category=tag_data.tag_category,
+                        tag_value=tag_data.tag_value,
+                        created_at=datetime.utcnow()
+                    )
+                    self.session.add(tag)
+
+            # Create funding rounds
+            if company_create.funding_rounds:
+                for round_data in company_create.funding_rounds:
+                    funding_round = FundingRound(
+                        company_id=new_company.id,
+                        announced_on=self._parse_date(round_data.announced_on),
+                        investment_type=round_data.investment_type,
+                        money_raised_usd=round_data.money_raised_usd,
+                        investor_names=round_data.investor_names,
+                        num_investors=round_data.num_investors,
+                        created_at=datetime.utcnow()
+                    )
+                    self.session.add(funding_round)
+
+            # Create PE investments
+            if company_create.pe_investments:
+                for investment_data in company_create.pe_investments:
+                    # Get or create PE firm
+                    pe_firm = self._get_or_create_pe_firm(investment_data.pe_firm_name)
+                    if not pe_firm:
+                        continue
+
+                    # Create investment relationship
+                    investment = CompanyPEInvestment(
+                        company_id=new_company.id,
+                        pe_firm_id=pe_firm.id,
+                        raw_status=investment_data.raw_status,
+                        computed_status=investment_data.computed_status or 'Active',  # Default to Active
+                        investment_year=investment_data.investment_year,
+                        investment_stage=investment_data.investment_stage,
+                        exit_type=investment_data.exit_type,
+                        exit_info=investment_data.exit_info,
+                        exit_year=investment_data.exit_year,
+                        last_scraped=datetime.utcnow(),
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    self.session.add(investment)
+
+            # Commit all changes
+            self.session.commit()
+
+            # Return the created company
+            return self.get_company_by_id(new_company.id)
+
+        except Exception as e:
+            self.session.rollback()
+            print(f"Error creating company: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
