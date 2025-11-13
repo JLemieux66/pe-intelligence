@@ -131,6 +131,17 @@ export interface CompanyFilters {
   max_employees?: number
   min_confidence?: number
   is_public?: boolean  // Filter by public/private status
+  // Data quality filters (IS EMPTY / IS NOT EMPTY)
+  has_linkedin_url?: boolean  // true = has LinkedIn, false = missing LinkedIn
+  has_website?: boolean  // true = has website, false = missing website
+  has_revenue?: boolean  // true = has revenue data, false = missing revenue
+  has_employees?: boolean  // true = has employee data, false = missing employee count
+  has_description?: boolean  // true = has description, false = missing description
+  // Date range filters
+  founded_year_min?: number  // Minimum founded year
+  founded_year_max?: number  // Maximum founded year
+  investment_year_min?: number  // Minimum investment year
+  investment_year_max?: number  // Maximum investment year
   // Filter operators
   filter_operator?: FilterOperator  // Global AND/OR for combining different filter types
   search_exact?: boolean  // Exact match for search text

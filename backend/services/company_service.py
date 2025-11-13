@@ -612,6 +612,114 @@ class CompanyService(BaseService):
             else:
                 query = query.filter(public_condition)
 
+        # Data quality filters (IS EMPTY / IS NOT EMPTY)
+        if filters.get('has_linkedin_url') is not None:
+            if filters['has_linkedin_url']:
+                # Has LinkedIn URL
+                linkedin_condition = Company.linkedin_url != None
+            else:
+                # Missing LinkedIn URL
+                linkedin_condition = Company.linkedin_url == None
+            if filter_operator == 'OR':
+                all_conditions.append(linkedin_condition)
+            else:
+                query = query.filter(linkedin_condition)
+
+        if filters.get('has_website') is not None:
+            if filters['has_website']:
+                website_condition = Company.website != None
+            else:
+                website_condition = Company.website == None
+            if filter_operator == 'OR':
+                all_conditions.append(website_condition)
+            else:
+                query = query.filter(website_condition)
+
+        if filters.get('has_revenue') is not None:
+            if filters['has_revenue']:
+                # Has revenue data (either current_revenue_usd or revenue_range)
+                revenue_condition = or_(
+                    Company.current_revenue_usd != None,
+                    Company.revenue_range != None
+                )
+            else:
+                # Missing revenue data
+                revenue_condition = and_(
+                    Company.current_revenue_usd == None,
+                    Company.revenue_range == None
+                )
+            if filter_operator == 'OR':
+                all_conditions.append(revenue_condition)
+            else:
+                query = query.filter(revenue_condition)
+
+        if filters.get('has_employees') is not None:
+            if filters['has_employees']:
+                # Has employee data (any of the employee fields)
+                employee_condition = or_(
+                    Company.projected_employee_count != None,
+                    Company.employee_count != None,
+                    Company.crunchbase_employee_count != None
+                )
+            else:
+                # Missing employee data
+                employee_condition = and_(
+                    Company.projected_employee_count == None,
+                    Company.employee_count == None,
+                    Company.crunchbase_employee_count == None
+                )
+            if filter_operator == 'OR':
+                all_conditions.append(employee_condition)
+            else:
+                query = query.filter(employee_condition)
+
+        if filters.get('has_description') is not None:
+            if filters['has_description']:
+                description_condition = Company.description != None
+            else:
+                description_condition = Company.description == None
+            if filter_operator == 'OR':
+                all_conditions.append(description_condition)
+            else:
+                query = query.filter(description_condition)
+
+        # Date range filters
+        if filters.get('founded_year_min') is not None:
+            founded_min_condition = Company.founded_year >= filters['founded_year_min']
+            if filter_operator == 'OR':
+                all_conditions.append(founded_min_condition)
+            else:
+                query = query.filter(founded_min_condition)
+
+        if filters.get('founded_year_max') is not None:
+            founded_max_condition = Company.founded_year <= filters['founded_year_max']
+            if filter_operator == 'OR':
+                all_conditions.append(founded_max_condition)
+            else:
+                query = query.filter(founded_max_condition)
+
+        if filters.get('investment_year_min') is not None:
+            # Filter companies with investments in or after this year
+            inv_year_min_condition = Company.id.in_(
+                self.session.query(CompanyPEInvestment.company_id)
+                .filter(CompanyPEInvestment.investment_year >= str(filters['investment_year_min']))
+            )
+            if filter_operator == 'OR':
+                all_conditions.append(inv_year_min_condition)
+            else:
+                query = query.filter(inv_year_min_condition)
+
+        if filters.get('investment_year_max') is not None:
+            # Filter companies with investments in or before this year
+            inv_year_max_condition = Company.id.in_(
+                self.session.query(CompanyPEInvestment.company_id)
+                .filter(CompanyPEInvestment.investment_year <= str(filters['investment_year_max']))
+            )
+            if filter_operator == 'OR':
+                all_conditions.append(inv_year_max_condition)
+            else:
+                query = query.filter(inv_year_max_condition)
+
         # Apply global OR operator if specified
         if filter_operator == 'OR' and all_conditions:
             query = query.filter(or_(*all_conditions))
