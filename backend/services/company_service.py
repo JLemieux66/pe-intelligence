@@ -297,13 +297,14 @@ class CompanyService(BaseService):
         if filters.get('pe_firm'):
             pe_firms = [f.strip() for f in filters['pe_firm'].split(',')]
             pe_firm_operator = filters.get('pe_firm_operator', 'OR').upper()
+            pe_firm_not = filters.get('pe_firm_not', False)
 
             if search_exact:
                 firm_conditions = [PEFirm.name == firm for firm in pe_firms]
             else:
                 firm_conditions = [PEFirm.name.ilike(f"%{firm}%") for firm in pe_firms]
 
-            if pe_firm_operator == 'AND':
+            if pe_firm_operator == 'AND' and not pe_firm_not:
                 # For AND: company must have investments from ALL specified firms
                 for firm_cond in firm_conditions:
                     query = query.filter(
@@ -317,10 +318,23 @@ class CompanyService(BaseService):
             else:
                 # For OR: company must have investment from ANY specified firm
                 pe_firm_condition = or_(*firm_conditions)
+
+                # Build the final condition
+                firm_subquery_condition = Company.id.in_(
+                    self.session.query(Company.id)
+                    .join(CompanyPEInvestment)
+                    .join(PEFirm)
+                    .filter(pe_firm_condition)
+                )
+
+                # Apply NOT logic if enabled
+                if pe_firm_not:
+                    firm_subquery_condition = ~firm_subquery_condition
+
                 if filter_operator == 'OR':
-                    all_conditions.append(pe_firm_condition)
+                    all_conditions.append(firm_subquery_condition)
                 else:
-                    query = query.filter(pe_firm_condition)
+                    query = query.filter(firm_subquery_condition)
 
         # Status filter
         if filters.get('status'):
@@ -334,8 +348,9 @@ class CompanyService(BaseService):
         if filters.get('industry'):
             industries = [i.strip() for i in filters['industry'].split(',')]
             industry_operator = filters.get('industry_operator', 'OR').upper()
+            industry_not = filters.get('industry_not', False)
 
-            if industry_operator == 'AND':
+            if industry_operator == 'AND' and not industry_not:
                 # For AND: company must have ALL specified industry tags
                 for industry in industries:
                     query = query.filter(
@@ -356,6 +371,11 @@ class CompanyService(BaseService):
                         CompanyTag.tag_value.in_(industries)
                     )
                 )
+
+                # Apply NOT logic if enabled
+                if industry_not:
+                    industry_condition = ~industry_condition
+
                 if filter_operator == 'OR':
                     all_conditions.append(industry_condition)
                 else:
@@ -365,6 +385,7 @@ class CompanyService(BaseService):
         if filters.get('industry_group'):
             groups = [g.strip() for g in filters['industry_group'].split(',')]
             industry_group_operator = filters.get('industry_group_operator', 'OR').upper()
+            industry_group_not = filters.get('industry_group_not', False)
 
             if industry_group_operator == 'AND':
                 # For AND: must match ALL groups (unusual case, but supported)
@@ -380,6 +401,10 @@ class CompanyService(BaseService):
                     Company.primary_industry_group.in_(groups)
                 )
 
+            # Apply NOT logic if enabled
+            if industry_group_not:
+                group_condition = ~group_condition
+
             if filter_operator == 'OR':
                 all_conditions.append(group_condition)
             else:
@@ -388,6 +413,7 @@ class CompanyService(BaseService):
         if filters.get('industry_sector'):
             sectors = [s.strip() for s in filters['industry_sector'].split(',')]
             industry_sector_operator = filters.get('industry_sector_operator', 'OR').upper()
+            industry_sector_not = filters.get('industry_sector_not', False)
 
             if industry_sector_operator == 'AND':
                 sector_conditions = [Company.primary_industry_sector == s for s in sectors]
@@ -401,6 +427,10 @@ class CompanyService(BaseService):
                     Company.primary_industry_sector.in_(sectors)
                 )
 
+            # Apply NOT logic if enabled
+            if industry_sector_not:
+                sector_condition = ~sector_condition
+
             if filter_operator == 'OR':
                 all_conditions.append(sector_condition)
             else:
@@ -409,6 +439,7 @@ class CompanyService(BaseService):
         if filters.get('verticals'):
             vertical_list = [v.strip() for v in filters['verticals'].split(',')]
             verticals_operator = filters.get('verticals_operator', 'OR').upper()
+            verticals_not = filters.get('verticals_not', False)
 
             if search_exact:
                 vertical_conditions = [Company.verticals == v for v in vertical_list]
@@ -426,6 +457,10 @@ class CompanyService(BaseService):
                     or_(*vertical_conditions)
                 )
 
+            # Apply NOT logic if enabled
+            if verticals_not:
+                verticals_condition = ~verticals_condition
+
             if filter_operator == 'OR':
                 all_conditions.append(verticals_condition)
             else:
@@ -435,6 +470,7 @@ class CompanyService(BaseService):
         if filters.get('country'):
             countries = [c.strip() for c in filters['country'].split(',')]
             country_operator = filters.get('country_operator', 'OR').upper()
+            country_not = filters.get('country_not', False)
 
             if country_operator == 'AND':
                 # For AND on countries (unusual), must match all
@@ -449,6 +485,10 @@ class CompanyService(BaseService):
                     Company.country.in_(countries)
                 )
 
+            # Apply NOT logic if enabled
+            if country_not:
+                country_condition = ~country_condition
+
             if filter_operator == 'OR':
                 all_conditions.append(country_condition)
             else:
@@ -457,6 +497,7 @@ class CompanyService(BaseService):
         if filters.get('state_region'):
             states = [s.strip() for s in filters['state_region'].split(',')]
             state_region_operator = filters.get('state_region_operator', 'OR').upper()
+            state_region_not = filters.get('state_region_not', False)
 
             if state_region_operator == 'AND':
                 state_conditions = [Company.state_region == s for s in states]
@@ -470,6 +511,10 @@ class CompanyService(BaseService):
                     Company.state_region.in_(states)
                 )
 
+            # Apply NOT logic if enabled
+            if state_region_not:
+                state_condition = ~state_condition
+
             if filter_operator == 'OR':
                 all_conditions.append(state_condition)
             else:
@@ -478,6 +523,7 @@ class CompanyService(BaseService):
         if filters.get('city'):
             cities = [c.strip() for c in filters['city'].split(',')]
             city_operator = filters.get('city_operator', 'OR').upper()
+            city_not = filters.get('city_not', False)
 
             if city_operator == 'AND':
                 city_conditions = [Company.city == c for c in cities]
@@ -490,6 +536,10 @@ class CompanyService(BaseService):
                     Company.city != None,
                     Company.city.in_(cities)
                 )
+
+            # Apply NOT logic if enabled
+            if city_not:
+                city_condition = ~city_condition
 
             if filter_operator == 'OR':
                 all_conditions.append(city_condition)
@@ -561,6 +611,114 @@ class CompanyService(BaseService):
                 all_conditions.append(public_condition)
             else:
                 query = query.filter(public_condition)
+
+        # Data quality filters (IS EMPTY / IS NOT EMPTY)
+        if filters.get('has_linkedin_url') is not None:
+            if filters['has_linkedin_url']:
+                # Has LinkedIn URL
+                linkedin_condition = Company.linkedin_url != None
+            else:
+                # Missing LinkedIn URL
+                linkedin_condition = Company.linkedin_url == None
+            if filter_operator == 'OR':
+                all_conditions.append(linkedin_condition)
+            else:
+                query = query.filter(linkedin_condition)
+
+        if filters.get('has_website') is not None:
+            if filters['has_website']:
+                website_condition = Company.website != None
+            else:
+                website_condition = Company.website == None
+            if filter_operator == 'OR':
+                all_conditions.append(website_condition)
+            else:
+                query = query.filter(website_condition)
+
+        if filters.get('has_revenue') is not None:
+            if filters['has_revenue']:
+                # Has revenue data (either current_revenue_usd or revenue_range)
+                revenue_condition = or_(
+                    Company.current_revenue_usd != None,
+                    Company.revenue_range != None
+                )
+            else:
+                # Missing revenue data
+                revenue_condition = and_(
+                    Company.current_revenue_usd == None,
+                    Company.revenue_range == None
+                )
+            if filter_operator == 'OR':
+                all_conditions.append(revenue_condition)
+            else:
+                query = query.filter(revenue_condition)
+
+        if filters.get('has_employees') is not None:
+            if filters['has_employees']:
+                # Has employee data (any of the employee fields)
+                employee_condition = or_(
+                    Company.projected_employee_count != None,
+                    Company.employee_count != None,
+                    Company.crunchbase_employee_count != None
+                )
+            else:
+                # Missing employee data
+                employee_condition = and_(
+                    Company.projected_employee_count == None,
+                    Company.employee_count == None,
+                    Company.crunchbase_employee_count == None
+                )
+            if filter_operator == 'OR':
+                all_conditions.append(employee_condition)
+            else:
+                query = query.filter(employee_condition)
+
+        if filters.get('has_description') is not None:
+            if filters['has_description']:
+                description_condition = Company.description != None
+            else:
+                description_condition = Company.description == None
+            if filter_operator == 'OR':
+                all_conditions.append(description_condition)
+            else:
+                query = query.filter(description_condition)
+
+        # Date range filters
+        if filters.get('founded_year_min') is not None:
+            founded_min_condition = Company.founded_year >= filters['founded_year_min']
+            if filter_operator == 'OR':
+                all_conditions.append(founded_min_condition)
+            else:
+                query = query.filter(founded_min_condition)
+
+        if filters.get('founded_year_max') is not None:
+            founded_max_condition = Company.founded_year <= filters['founded_year_max']
+            if filter_operator == 'OR':
+                all_conditions.append(founded_max_condition)
+            else:
+                query = query.filter(founded_max_condition)
+
+        if filters.get('investment_year_min') is not None:
+            # Filter companies with investments in or after this year
+            inv_year_min_condition = Company.id.in_(
+                self.session.query(CompanyPEInvestment.company_id)
+                .filter(CompanyPEInvestment.investment_year >= str(filters['investment_year_min']))
+            )
+            if filter_operator == 'OR':
+                all_conditions.append(inv_year_min_condition)
+            else:
+                query = query.filter(inv_year_min_condition)
+
+        if filters.get('investment_year_max') is not None:
+            # Filter companies with investments in or before this year
+            inv_year_max_condition = Company.id.in_(
+                self.session.query(CompanyPEInvestment.company_id)
+                .filter(CompanyPEInvestment.investment_year <= str(filters['investment_year_max']))
+            )
+            if filter_operator == 'OR':
+                all_conditions.append(inv_year_max_condition)
+            else:
+                query = query.filter(inv_year_max_condition)
 
         # Apply global OR operator if specified
         if filter_operator == 'OR' and all_conditions:

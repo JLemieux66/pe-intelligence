@@ -48,6 +48,26 @@ def get_companies(
     country_operator: Optional[str] = Query("OR", description="Operator for multiple countries (AND/OR)"),
     state_region_operator: Optional[str] = Query("OR", description="Operator for multiple states (AND/OR)"),
     city_operator: Optional[str] = Query("OR", description="Operator for multiple cities (AND/OR)"),
+    # NOT operators (negation)
+    pe_firm_not: Optional[bool] = Query(False, description="Exclude companies with these PE firms"),
+    industry_not: Optional[bool] = Query(False, description="Exclude companies with these industries"),
+    industry_group_not: Optional[bool] = Query(False, description="Exclude companies with these industry groups"),
+    industry_sector_not: Optional[bool] = Query(False, description="Exclude companies with these industry sectors"),
+    verticals_not: Optional[bool] = Query(False, description="Exclude companies with these verticals"),
+    country_not: Optional[bool] = Query(False, description="Exclude companies in these countries"),
+    state_region_not: Optional[bool] = Query(False, description="Exclude companies in these states"),
+    city_not: Optional[bool] = Query(False, description="Exclude companies in these cities"),
+    # Data quality filters
+    has_linkedin_url: Optional[bool] = Query(None, description="Filter by LinkedIn URL presence (true=has, false=missing)"),
+    has_website: Optional[bool] = Query(None, description="Filter by website presence (true=has, false=missing)"),
+    has_revenue: Optional[bool] = Query(None, description="Filter by revenue data presence (true=has, false=missing)"),
+    has_employees: Optional[bool] = Query(None, description="Filter by employee count presence (true=has, false=missing)"),
+    has_description: Optional[bool] = Query(None, description="Filter by description presence (true=has, false=missing)"),
+    # Date range filters
+    founded_year_min: Optional[int] = Query(None, description="Minimum founded year"),
+    founded_year_max: Optional[int] = Query(None, description="Maximum founded year"),
+    investment_year_min: Optional[int] = Query(None, description="Minimum investment year"),
+    investment_year_max: Optional[int] = Query(None, description="Maximum investment year"),
     limit: int = Query(10000, ge=1, le=10000, description="Number of results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     session = Depends(get_session)
@@ -83,7 +103,27 @@ def get_companies(
         'verticals_operator': verticals_operator,
         'country_operator': country_operator,
         'state_region_operator': state_region_operator,
-        'city_operator': city_operator
+        'city_operator': city_operator,
+        # NOT operators
+        'pe_firm_not': pe_firm_not,
+        'industry_not': industry_not,
+        'industry_group_not': industry_group_not,
+        'industry_sector_not': industry_sector_not,
+        'verticals_not': verticals_not,
+        'country_not': country_not,
+        'state_region_not': state_region_not,
+        'city_not': city_not,
+        # Data quality filters
+        'has_linkedin_url': has_linkedin_url,
+        'has_website': has_website,
+        'has_revenue': has_revenue,
+        'has_employees': has_employees,
+        'has_description': has_description,
+        # Date range filters
+        'founded_year_min': founded_year_min,
+        'founded_year_max': founded_year_max,
+        'investment_year_min': investment_year_min,
+        'investment_year_max': investment_year_max
     }
     
     # Use service to get companies

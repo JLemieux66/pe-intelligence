@@ -36,6 +36,35 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
   const [stateOperator, setStateOperator] = useState<'AND' | 'OR'>('OR')
   const [cityOperator, setCityOperator] = useState<'AND' | 'OR'>('OR')
 
+  // NOT operators (negation)
+  const [peFirmNot, setPeFirmNot] = useState(false)
+  const [industryGroupNot, setIndustryGroupNot] = useState(false)
+  const [industrySectorNot, setIndustrySectorNot] = useState(false)
+  const [verticalsNot, setVerticalsNot] = useState(false)
+  const [countryNot, setCountryNot] = useState(false)
+  const [stateNot, setStateNot] = useState(false)
+  const [cityNot, setCityNot] = useState(false)
+
+  // Data quality filters
+  const [hasLinkedIn, setHasLinkedIn] = useState<boolean | undefined>(undefined)
+  const [hasWebsite, setHasWebsite] = useState<boolean | undefined>(undefined)
+  const [hasRevenue, setHasRevenue] = useState<boolean | undefined>(undefined)
+  const [hasEmployees, setHasEmployees] = useState<boolean | undefined>(undefined)
+  const [hasDescription, setHasDescription] = useState<boolean | undefined>(undefined)
+
+  // Date range filters
+  const [foundedYearMin, setFoundedYearMin] = useState('')
+  const [foundedYearMax, setFoundedYearMax] = useState('')
+  const [investmentYearMin, setInvestmentYearMin] = useState('')
+  const [investmentYearMax, setInvestmentYearMax] = useState('')
+
+  // Saved filter presets
+  const [savedPresets, setSavedPresets] = useState<Array<{name: string, filters: any}>>(() => {
+    const saved = localStorage.getItem('filterPresets')
+    return saved ? JSON.parse(saved) : []
+  })
+  const [presetName, setPresetName] = useState('')
+
   // Dropdown open states
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
@@ -62,31 +91,38 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     if (selectedFirms.length > 0) {
       filters.pe_firm = selectedFirms.join(',')
       filters.pe_firm_operator = peFirmOperator
+      filters.pe_firm_not = peFirmNot
     }
     if (selectedStatus) filters.status = selectedStatus
     if (selectedIndustryGroups.length > 0) {
       filters.industry_group = selectedIndustryGroups.join(',')
       filters.industry_group_operator = industryGroupOperator
+      filters.industry_group_not = industryGroupNot
     }
     if (selectedIndustrySectors.length > 0) {
       filters.industry_sector = selectedIndustrySectors.join(',')
       filters.industry_sector_operator = industrySectorOperator
+      filters.industry_sector_not = industrySectorNot
     }
     if (selectedVerticals.length > 0) {
       filters.verticals = selectedVerticals.join(',')
       filters.verticals_operator = verticalsOperator
+      filters.verticals_not = verticalsNot
     }
     if (selectedCountries.length > 0) {
       filters.country = selectedCountries.join(',')
       filters.country_operator = countryOperator
+      filters.country_not = countryNot
     }
     if (selectedStates.length > 0) {
       filters.state_region = selectedStates.join(',')
       filters.state_region_operator = stateOperator
+      filters.state_region_not = stateNot
     }
     if (selectedCities.length > 0) {
       filters.city = selectedCities.join(',')
       filters.city_operator = cityOperator
+      filters.city_not = cityNot
     }
     if (minRevenue) filters.min_revenue = parseFloat(minRevenue)
     if (maxRevenue) filters.max_revenue = parseFloat(maxRevenue)
@@ -94,12 +130,25 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     if (maxEmployees) filters.max_employees = parseInt(maxEmployees)
     if (isPublic !== undefined) filters.is_public = isPublic
 
+    // Data quality filters
+    if (hasLinkedIn !== undefined) filters.has_linkedin_url = hasLinkedIn
+    if (hasWebsite !== undefined) filters.has_website = hasWebsite
+    if (hasRevenue !== undefined) filters.has_revenue = hasRevenue
+    if (hasEmployees !== undefined) filters.has_employees = hasEmployees
+    if (hasDescription !== undefined) filters.has_description = hasDescription
+
+    // Date range filters
+    if (foundedYearMin) filters.founded_year_min = parseInt(foundedYearMin)
+    if (foundedYearMax) filters.founded_year_max = parseInt(foundedYearMax)
+    if (investmentYearMin) filters.investment_year_min = parseInt(investmentYearMin)
+    if (investmentYearMax) filters.investment_year_max = parseInt(investmentYearMax)
+
     // Global filter operator
     filters.filter_operator = filterOperator
 
     console.log('HorizontalFilters - Applying filters:', filters)
     onFilterChange(filters)
-  }, [search, searchExact, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, isPublic, filterOperator, peFirmOperator, industryGroupOperator, industrySectorOperator, verticalsOperator, countryOperator, stateOperator, cityOperator, onFilterChange])
+  }, [search, searchExact, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, isPublic, filterOperator, peFirmOperator, industryGroupOperator, industrySectorOperator, verticalsOperator, countryOperator, stateOperator, cityOperator, peFirmNot, industryGroupNot, industrySectorNot, verticalsNot, countryNot, stateNot, cityNot, hasLinkedIn, hasWebsite, hasRevenue, hasEmployees, hasDescription, foundedYearMin, foundedYearMax, investmentYearMin, investmentYearMax, onFilterChange])
 
   const toggleSelection = (value: string, currentList: string[], setter: (list: string[]) => void) => {
     console.log('toggleSelection called', value, 'openDropdown:', openDropdown)
@@ -134,6 +183,102 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     setCountryOperator('OR')
     setStateOperator('OR')
     setCityOperator('OR')
+    setPeFirmNot(false)
+    setIndustryGroupNot(false)
+    setIndustrySectorNot(false)
+    setVerticalsNot(false)
+    setCountryNot(false)
+    setStateNot(false)
+    setCityNot(false)
+    setHasLinkedIn(undefined)
+    setHasWebsite(undefined)
+    setHasRevenue(undefined)
+    setHasEmployees(undefined)
+    setHasDescription(undefined)
+    setFoundedYearMin('')
+    setFoundedYearMax('')
+    setInvestmentYearMin('')
+    setInvestmentYearMax('')
+  }
+
+  // Preset management functions
+  const saveCurrentFilters = () => {
+    if (!presetName.trim()) {
+      alert('Please enter a name for this preset')
+      return
+    }
+
+    const currentFilters = {
+      search, searchExact, selectedFirms, selectedStatus,
+      selectedIndustryGroups, selectedIndustrySectors, selectedVerticals,
+      selectedCountries, selectedStates, selectedCities,
+      minRevenue, maxRevenue, minEmployees, maxEmployees, isPublic,
+      filterOperator, peFirmOperator, industryGroupOperator,
+      industrySectorOperator, verticalsOperator, countryOperator,
+      stateOperator, cityOperator, peFirmNot, industryGroupNot,
+      industrySectorNot, verticalsNot, countryNot, stateNot, cityNot,
+      hasLinkedIn, hasWebsite, hasRevenue, hasEmployees, hasDescription,
+      foundedYearMin, foundedYearMax, investmentYearMin, investmentYearMax
+    }
+
+    const newPresets = [...savedPresets, { name: presetName, filters: currentFilters }]
+    setSavedPresets(newPresets)
+    localStorage.setItem('filterPresets', JSON.stringify(newPresets))
+    setPresetName('')
+    setOpenDropdown(null)
+    alert(`Filter preset "${presetName}" saved!`)
+  }
+
+  const loadPreset = (preset: {name: string, filters: any}) => {
+    const f = preset.filters
+    setSearch(f.search || '')
+    setSearchExact(f.searchExact || false)
+    setSelectedFirms(f.selectedFirms || [])
+    setSelectedStatus(f.selectedStatus || '')
+    setSelectedIndustryGroups(f.selectedIndustryGroups || [])
+    setSelectedIndustrySectors(f.selectedIndustrySectors || [])
+    setSelectedVerticals(f.selectedVerticals || [])
+    setSelectedCountries(f.selectedCountries || [])
+    setSelectedStates(f.selectedStates || [])
+    setSelectedCities(f.selectedCities || [])
+    setMinRevenue(f.minRevenue || '')
+    setMaxRevenue(f.maxRevenue || '')
+    setMinEmployees(f.minEmployees || '')
+    setMaxEmployees(f.maxEmployees || '')
+    setIsPublic(f.isPublic)
+    setFilterOperator(f.filterOperator || 'AND')
+    setPeFirmOperator(f.peFirmOperator || 'OR')
+    setIndustryGroupOperator(f.industryGroupOperator || 'OR')
+    setIndustrySectorOperator(f.industrySectorOperator || 'OR')
+    setVerticalsOperator(f.verticalsOperator || 'OR')
+    setCountryOperator(f.countryOperator || 'OR')
+    setStateOperator(f.stateOperator || 'OR')
+    setCityOperator(f.cityOperator || 'OR')
+    setPeFirmNot(f.peFirmNot || false)
+    setIndustryGroupNot(f.industryGroupNot || false)
+    setIndustrySectorNot(f.industrySectorNot || false)
+    setVerticalsNot(f.verticalsNot || false)
+    setCountryNot(f.countryNot || false)
+    setStateNot(f.stateNot || false)
+    setCityNot(f.cityNot || false)
+    setHasLinkedIn(f.hasLinkedIn)
+    setHasWebsite(f.hasWebsite)
+    setHasRevenue(f.hasRevenue)
+    setHasEmployees(f.hasEmployees)
+    setHasDescription(f.hasDescription)
+    setFoundedYearMin(f.foundedYearMin || '')
+    setFoundedYearMax(f.foundedYearMax || '')
+    setInvestmentYearMin(f.investmentYearMin || '')
+    setInvestmentYearMax(f.investmentYearMax || '')
+    setOpenDropdown(null)
+  }
+
+  const deletePreset = (presetName: string) => {
+    if (confirm(`Delete preset "${presetName}"?`)) {
+      const newPresets = savedPresets.filter(p => p.name !== presetName)
+      setSavedPresets(newPresets)
+      localStorage.setItem('filterPresets', JSON.stringify(newPresets))
+    }
   }
 
   const activeFilterCount = [
@@ -269,15 +414,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                 <div
                   className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                 >
-                  {/* Operator Toggle - Only show when 2+ selected */}
-                  {selectedFirms.length >= 2 && (
+                  {/* Operator Toggle - Only show when items selected */}
+                  {selectedFirms.length > 0 && (
                     <div className="p-3 border-b border-gray-200 bg-blue-50">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-700">Match:</span>
-                        <OperatorToggle value={peFirmOperator} onChange={setPeFirmOperator} />
-                        <span className="text-xs text-gray-600">
-                          {peFirmOperator === 'AND' ? 'ALL selected firms' : 'ANY selected firm'}
-                        </span>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {selectedFirms.length >= 2 && (
+                          <>
+                            <span className="text-xs font-medium text-gray-700">Match:</span>
+                            <OperatorToggle value={peFirmOperator} onChange={setPeFirmOperator} />
+                            <span className="text-xs text-gray-600">
+                              {peFirmOperator === 'AND' ? 'ALL selected firms' : 'ANY selected firm'}
+                            </span>
+                            <span className="text-gray-300">|</span>
+                          </>
+                        )}
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={peFirmNot}
+                            onChange={(e) => setPeFirmNot(e.target.checked)}
+                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                          />
+                          <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                        </label>
                       </div>
                     </div>
                   )}
@@ -394,15 +553,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedIndustrySectors.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedIndustrySectors.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-purple-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={industrySectorOperator} onChange={setIndustrySectorOperator} />
-                          <span className="text-xs text-gray-600">
-                            {industrySectorOperator === 'AND' ? 'ALL selected sectors' : 'ANY selected sector'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedIndustrySectors.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={industrySectorOperator} onChange={setIndustrySectorOperator} />
+                              <span className="text-xs text-gray-600">
+                                {industrySectorOperator === 'AND' ? 'ALL selected sectors' : 'ANY selected sector'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={industrySectorNot}
+                              onChange={(e) => setIndustrySectorNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -461,15 +634,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedIndustryGroups.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedIndustryGroups.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-indigo-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={industryGroupOperator} onChange={setIndustryGroupOperator} />
-                          <span className="text-xs text-gray-600">
-                            {industryGroupOperator === 'AND' ? 'ALL selected groups' : 'ANY selected group'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedIndustryGroups.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={industryGroupOperator} onChange={setIndustryGroupOperator} />
+                              <span className="text-xs text-gray-600">
+                                {industryGroupOperator === 'AND' ? 'ALL selected groups' : 'ANY selected group'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={industryGroupNot}
+                              onChange={(e) => setIndustryGroupNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -528,15 +715,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedVerticals.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedVerticals.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-pink-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={verticalsOperator} onChange={setVerticalsOperator} />
-                          <span className="text-xs text-gray-600">
-                            {verticalsOperator === 'AND' ? 'ONLY these verticals (exact match)' : 'ANY of these verticals'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedVerticals.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={verticalsOperator} onChange={setVerticalsOperator} />
+                              <span className="text-xs text-gray-600">
+                                {verticalsOperator === 'AND' ? 'ONLY these verticals (exact match)' : 'ANY of these verticals'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={verticalsNot}
+                              onChange={(e) => setVerticalsNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -595,15 +796,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedCountries.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedCountries.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-emerald-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={countryOperator} onChange={setCountryOperator} />
-                          <span className="text-xs text-gray-600">
-                            {countryOperator === 'AND' ? 'ALL selected countries' : 'ANY selected country'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedCountries.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={countryOperator} onChange={setCountryOperator} />
+                              <span className="text-xs text-gray-600">
+                                {countryOperator === 'AND' ? 'ALL selected countries' : 'ANY selected country'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={countryNot}
+                              onChange={(e) => setCountryNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -663,15 +878,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedStates.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedStates.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-teal-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={stateOperator} onChange={setStateOperator} />
-                          <span className="text-xs text-gray-600">
-                            {stateOperator === 'AND' ? 'ALL selected states' : 'ANY selected state'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedStates.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={stateOperator} onChange={setStateOperator} />
+                              <span className="text-xs text-gray-600">
+                                {stateOperator === 'AND' ? 'ALL selected states' : 'ANY selected state'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={stateNot}
+                              onChange={(e) => setStateNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -736,15 +965,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedCities.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedCities.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-cyan-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={cityOperator} onChange={setCityOperator} />
-                          <span className="text-xs text-gray-600">
-                            {cityOperator === 'AND' ? 'ALL selected cities' : 'ANY selected city'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedCities.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={cityOperator} onChange={setCityOperator} />
+                              <span className="text-xs text-gray-600">
+                                {cityOperator === 'AND' ? 'ALL selected cities' : 'ANY selected city'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={cityNot}
+                              onChange={(e) => setCityNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -882,6 +1125,262 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                         className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                       />
                     </label>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Data Quality Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setOpenDropdown(openDropdown === 'data_quality' ? null : 'data_quality')}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+            >
+              <span>
+                Data Quality {(hasLinkedIn !== undefined || hasWebsite !== undefined || hasRevenue !== undefined || hasEmployees !== undefined || hasDescription !== undefined) && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">•</span>
+                )}
+              </span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            {openDropdown === 'data_quality' && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setOpenDropdown(null);
+                    }
+                  }}
+                />
+                <div
+                  className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-50"
+                >
+                  <div className="p-4 space-y-3">
+                    <div className="text-xs font-semibold text-gray-700 mb-2">Filter by data availability:</div>
+
+                    {['LinkedIn URL', 'Website', 'Revenue', 'Employees', 'Description'].map((label, idx) => {
+                      const states = [
+                        [hasLinkedIn, setHasLinkedIn],
+                        [hasWebsite, setHasWebsite],
+                        [hasRevenue, setHasRevenue],
+                        [hasEmployees, setHasEmployees],
+                        [hasDescription, setHasDescription]
+                      ][idx] as [boolean | undefined, (val: boolean | undefined) => void]
+
+                      return (
+                        <div key={label} className="flex items-center justify-between py-1">
+                          <span className="text-sm text-gray-700">{label}:</span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => states[1](undefined)}
+                              className={`px-3 py-1 text-xs rounded ${
+                                states[0] === undefined
+                                  ? 'bg-gray-200 text-gray-800 font-medium'
+                                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              Any
+                            </button>
+                            <button
+                              onClick={() => states[1](true)}
+                              className={`px-3 py-1 text-xs rounded ${
+                                states[0] === true
+                                  ? 'bg-green-100 text-green-800 font-medium'
+                                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              Has
+                            </button>
+                            <button
+                              onClick={() => states[1](false)}
+                              className={`px-3 py-1 text-xs rounded ${
+                                states[0] === false
+                                  ? 'bg-red-100 text-red-800 font-medium'
+                                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              Missing
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Date Ranges Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setOpenDropdown(openDropdown === 'dates' ? null : 'dates')}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[120px] justify-between"
+            >
+              <span>
+                Dates {(foundedYearMin || foundedYearMax || investmentYearMin || investmentYearMax) && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs">•</span>
+                )}
+              </span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            {openDropdown === 'dates' && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setOpenDropdown(null);
+                    }
+                  }}
+                />
+                <div
+                  className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50"
+                >
+                  <div className="p-4 space-y-4">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 mb-2">Founded Year</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                          <span className="text-xs text-gray-600">Min</span>
+                          <input
+                            type="number"
+                            placeholder="1990"
+                            value={foundedYearMin}
+                            onChange={(e) => setFoundedYearMin(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-gray-600">Max</span>
+                          <input
+                            type="number"
+                            placeholder="2024"
+                            value={foundedYearMax}
+                            onChange={(e) => setFoundedYearMax(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 mb-2">Investment Year</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                          <span className="text-xs text-gray-600">Min</span>
+                          <input
+                            type="number"
+                            placeholder="2015"
+                            value={investmentYearMin}
+                            onChange={(e) => setInvestmentYearMin(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-gray-600">Max</span>
+                          <input
+                            type="number"
+                            placeholder="2024"
+                            value={investmentYearMax}
+                            onChange={(e) => setInvestmentYearMax(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Saved Filters Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setOpenDropdown(openDropdown === 'saved_filters' ? null : 'saved_filters')}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+            >
+              <span>
+                Saved Filters {savedPresets.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                    {savedPresets.length}
+                  </span>
+                )}
+              </span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            {openDropdown === 'saved_filters' && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setOpenDropdown(null);
+                    }
+                  }}
+                />
+                <div
+                  className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto"
+                >
+                  <div className="p-4">
+                    {/* Save current filters */}
+                    <div className="mb-4 pb-4 border-b border-gray-200">
+                      <div className="text-xs font-semibold text-gray-700 mb-2">Save Current Filters</div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Preset name..."
+                          value={presetName}
+                          onChange={(e) => setPresetName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && saveCurrentFilters()}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        />
+                        <button
+                          onClick={saveCurrentFilters}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Load saved presets */}
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 mb-2">Saved Presets</div>
+                      {savedPresets.length === 0 ? (
+                        <div className="text-sm text-gray-500 text-center py-4">
+                          No saved presets yet
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {savedPresets.map((preset) => (
+                            <div
+                              key={preset.name}
+                              className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 rounded group"
+                            >
+                              <button
+                                onClick={() => loadPreset(preset)}
+                                className="flex-1 text-left text-sm text-gray-700 hover:text-blue-600"
+                              >
+                                {preset.name}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deletePreset(preset.name)
+                                }}
+                                className="ml-2 text-red-600 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </>
