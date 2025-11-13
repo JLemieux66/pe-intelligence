@@ -48,6 +48,10 @@ def get_companies(
     country_operator: Optional[str] = Query("OR", description="Operator for multiple countries (AND/OR)"),
     state_region_operator: Optional[str] = Query("OR", description="Operator for multiple states (AND/OR)"),
     city_operator: Optional[str] = Query("OR", description="Operator for multiple cities (AND/OR)"),
+    # EXACT match flags (only these values, no others)
+    verticals_exact: Optional[bool] = Query(False, description="Only companies with exactly these verticals, no additional ones"),
+    industry_group_exact: Optional[bool] = Query(False, description="Only companies with exactly these industry groups"),
+    industry_sector_exact: Optional[bool] = Query(False, description="Only companies with exactly these industry sectors"),
     # NOT operators (negation)
     pe_firm_not: Optional[bool] = Query(False, description="Exclude companies with these PE firms"),
     industry_not: Optional[bool] = Query(False, description="Exclude companies with these industries"),
@@ -104,6 +108,10 @@ def get_companies(
         'country_operator': country_operator,
         'state_region_operator': state_region_operator,
         'city_operator': city_operator,
+        # EXACT match flags
+        'verticals_exact': verticals_exact,
+        'industry_group_exact': industry_group_exact,
+        'industry_sector_exact': industry_sector_exact,
         # NOT operators
         'pe_firm_not': pe_firm_not,
         'industry_not': industry_not,
