@@ -130,6 +130,7 @@ export interface CompanyFilters {
   min_employees?: number
   max_employees?: number
   min_confidence?: number
+  is_public?: boolean  // Filter by public/private status
   // Filter operators
   filter_operator?: FilterOperator  // Global AND/OR for combining different filter types
   search_exact?: boolean  // Exact match for search text
