@@ -26,16 +26,20 @@ class StatsService(BaseService):
             func.count(distinct(PEFirm.id)).label('total_pe_firms'),
             func.count(CompanyPEInvestment.id).label('total_investments'),
             func.sum(case((CompanyPEInvestment.computed_status == 'Active', 1), else_=0)).label('active'),
-            func.sum(case((CompanyPEInvestment.computed_status == 'Exit', 1), else_=0)).label('exit'),
-            func.sum(case((Company.linkedin_url != None, 1), else_=0)).label('enriched')
+            func.sum(case((CompanyPEInvestment.computed_status == 'Exit', 1), else_=0)).label('exit')
         ).select_from(Company).join(CompanyPEInvestment).join(PEFirm).first()
+
+        # Enrichment rate: count DISTINCT companies with LinkedIn data (avoid counting duplicates from joins)
+        enriched_count = self.session.query(
+            func.count(distinct(case((Company.linkedin_url != None, Company.id), else_=None)))
+        ).select_from(Company).join(CompanyPEInvestment).scalar()
 
         # Co-investments requires a separate query (more complex aggregation)
         co_investments = self.session.query(Company.id).join(CompanyPEInvestment).group_by(Company.id).having(
             func.count(CompanyPEInvestment.pe_firm_id) > 1
         ).count()
 
-        enrichment_rate = (stats.enriched / stats.total_companies * 100) if stats.total_companies > 0 else 0
+        enrichment_rate = (enriched_count / stats.total_companies * 100) if stats.total_companies > 0 else 0
 
         return StatsResponse(
             total_companies=stats.total_companies,
