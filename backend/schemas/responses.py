@@ -131,10 +131,18 @@ class SimilarCompaniesResponse(BaseModel):
     total_results: int
 
 
+class LocationData(BaseModel):
+    """Location data with count"""
+    name: str
+    count: int
+    country: Optional[str] = None  # For states/cities
+    state: Optional[str] = None    # For cities
+
+
 class LocationsResponse(BaseModel):
-    countries: List[str]
-    states: List[str]
-    cities: List[str]
+    countries: List[LocationData]
+    states: List[LocationData]
+    cities: List[LocationData]
 
 
 class PitchBookMetadataResponse(BaseModel):

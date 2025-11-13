@@ -12,26 +12,51 @@ class MetadataService(BaseService):
     """Service for metadata-related business logic"""
     
     def get_locations(self) -> LocationsResponse:
-        """Get all unique locations from companies"""
-        
-        # Get unique countries
-        countries = self.session.query(distinct(Company.country)).filter(
+        """Get all unique locations from companies with counts"""
+        from backend.schemas.responses import LocationData
+
+        # Get countries with counts
+        countries_raw = self.session.query(
+            Company.country,
+            func.count(distinct(Company.id)).label('count')
+        ).filter(
             Company.country.isnot(None)
-        ).order_by(Company.country).all()
-        countries_list = [c[0] for c in countries if c[0]]
-        
-        # Get unique states/regions
-        states = self.session.query(distinct(Company.state_region)).filter(
+        ).group_by(Company.country).order_by(Company.country).all()
+
+        countries_list = [
+            LocationData(name=c[0], count=c[1])
+            for c in countries_raw if c[0]
+        ]
+
+        # Get states/regions with counts and country
+        states_raw = self.session.query(
+            Company.state_region,
+            Company.country,
+            func.count(distinct(Company.id)).label('count')
+        ).filter(
             Company.state_region.isnot(None)
-        ).order_by(Company.state_region).all()
-        states_list = [s[0] for s in states if s[0]]
-        
-        # Get unique cities
-        cities = self.session.query(distinct(Company.city)).filter(
+        ).group_by(Company.state_region, Company.country).order_by(Company.state_region).all()
+
+        states_list = [
+            LocationData(name=s[0], count=s[2], country=s[1])
+            for s in states_raw if s[0]
+        ]
+
+        # Get cities with counts, state, and country (limit to top 100 by count)
+        cities_raw = self.session.query(
+            Company.city,
+            Company.state_region,
+            Company.country,
+            func.count(distinct(Company.id)).label('count')
+        ).filter(
             Company.city.isnot(None)
-        ).order_by(Company.city).all()
-        cities_list = [c[0] for c in cities if c[0]]
-        
+        ).group_by(Company.city, Company.state_region, Company.country).order_by(func.count(distinct(Company.id)).desc()).limit(100).all()
+
+        cities_list = [
+            LocationData(name=c[0], count=c[3], state=c[1], country=c[2])
+            for c in cities_raw if c[0]
+        ]
+
         return LocationsResponse(
             countries=countries_list,
             states=states_list,
