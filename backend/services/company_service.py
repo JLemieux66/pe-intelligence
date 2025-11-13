@@ -440,22 +440,44 @@ class CompanyService(BaseService):
             vertical_list = [v.strip() for v in filters['verticals'].split(',')]
             verticals_operator = filters.get('verticals_operator', 'OR').upper()
             verticals_not = filters.get('verticals_not', False)
+            verticals_exact = filters.get('verticals_exact', False)
 
-            if search_exact:
+            if verticals_exact:
+                # EXACT mode: Company must have ONLY these verticals, no more, no less
+                # Generate all possible orderings of the selected verticals (since order in CSV may vary)
+                from itertools import permutations
+                vertical_permutations = list(permutations(vertical_list))
+                exact_match_conditions = [
+                    Company.verticals == ', '.join(perm) for perm in vertical_permutations
+                ]
+                verticals_condition = and_(
+                    Company.verticals != None,
+                    or_(*exact_match_conditions)
+                )
+            elif search_exact:
                 vertical_conditions = [Company.verticals == v for v in vertical_list]
+                if verticals_operator == 'AND':
+                    verticals_condition = and_(
+                        Company.verticals != None,
+                        and_(*vertical_conditions)
+                    )
+                else:
+                    verticals_condition = and_(
+                        Company.verticals != None,
+                        or_(*vertical_conditions)
+                    )
             else:
                 vertical_conditions = [Company.verticals.ilike(f"%{v}%") for v in vertical_list]
-
-            if verticals_operator == 'AND':
-                verticals_condition = and_(
-                    Company.verticals != None,
-                    and_(*vertical_conditions)
-                )
-            else:
-                verticals_condition = and_(
-                    Company.verticals != None,
-                    or_(*vertical_conditions)
-                )
+                if verticals_operator == 'AND':
+                    verticals_condition = and_(
+                        Company.verticals != None,
+                        and_(*vertical_conditions)
+                    )
+                else:
+                    verticals_condition = and_(
+                        Company.verticals != None,
+                        or_(*vertical_conditions)
+                    )
 
             # Apply NOT logic if enabled
             if verticals_not:

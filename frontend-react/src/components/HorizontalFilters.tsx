@@ -45,6 +45,9 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
   const [stateNot, setStateNot] = useState(false)
   const [cityNot, setCityNot] = useState(false)
 
+  // EXACT match flags (only these values, no others)
+  const [verticalsExact, setVerticalsExact] = useState(false)
+
   // Data quality filters
   const [hasLinkedIn, setHasLinkedIn] = useState<boolean | undefined>(undefined)
   const [hasWebsite, setHasWebsite] = useState<boolean | undefined>(undefined)
@@ -108,6 +111,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
       filters.verticals = selectedVerticals.join(',')
       filters.verticals_operator = verticalsOperator
       filters.verticals_not = verticalsNot
+      filters.verticals_exact = verticalsExact
     }
     if (selectedCountries.length > 0) {
       filters.country = selectedCountries.join(',')
@@ -148,7 +152,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
 
     console.log('HorizontalFilters - Applying filters:', filters)
     onFilterChange(filters)
-  }, [search, searchExact, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, isPublic, filterOperator, peFirmOperator, industryGroupOperator, industrySectorOperator, verticalsOperator, countryOperator, stateOperator, cityOperator, peFirmNot, industryGroupNot, industrySectorNot, verticalsNot, countryNot, stateNot, cityNot, hasLinkedIn, hasWebsite, hasRevenue, hasEmployees, hasDescription, foundedYearMin, foundedYearMax, investmentYearMin, investmentYearMax, onFilterChange])
+  }, [search, searchExact, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, isPublic, filterOperator, peFirmOperator, industryGroupOperator, industrySectorOperator, verticalsOperator, countryOperator, stateOperator, cityOperator, peFirmNot, industryGroupNot, industrySectorNot, verticalsNot, countryNot, stateNot, cityNot, verticalsExact, hasLinkedIn, hasWebsite, hasRevenue, hasEmployees, hasDescription, foundedYearMin, foundedYearMax, investmentYearMin, investmentYearMax, onFilterChange])
 
   const toggleSelection = (value: string, currentList: string[], setter: (list: string[]) => void) => {
     console.log('toggleSelection called', value, 'openDropdown:', openDropdown)
@@ -190,6 +194,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     setCountryNot(false)
     setStateNot(false)
     setCityNot(false)
+    setVerticalsExact(false)
     setHasLinkedIn(undefined)
     setHasWebsite(undefined)
     setHasRevenue(undefined)
@@ -217,6 +222,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
       industrySectorOperator, verticalsOperator, countryOperator,
       stateOperator, cityOperator, peFirmNot, industryGroupNot,
       industrySectorNot, verticalsNot, countryNot, stateNot, cityNot,
+      verticalsExact,
       hasLinkedIn, hasWebsite, hasRevenue, hasEmployees, hasDescription,
       foundedYearMin, foundedYearMax, investmentYearMin, investmentYearMax
     }
@@ -261,6 +267,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     setCountryNot(f.countryNot || false)
     setStateNot(f.stateNot || false)
     setCityNot(f.cityNot || false)
+    setVerticalsExact(f.verticalsExact || false)
     setHasLinkedIn(f.hasLinkedIn)
     setHasWebsite(f.hasWebsite)
     setHasRevenue(f.hasRevenue)
@@ -717,28 +724,47 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   >
                     {/* Operator Toggle - Only show when items selected */}
                     {selectedVerticals.length > 0 && (
-                      <div className="p-3 border-b border-gray-200 bg-pink-50">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          {selectedVerticals.length >= 2 && (
-                            <>
-                              <span className="text-xs font-medium text-gray-700">Match:</span>
-                              <OperatorToggle value={verticalsOperator} onChange={setVerticalsOperator} />
-                              <span className="text-xs text-gray-600">
-                                {verticalsOperator === 'AND' ? 'ONLY these verticals (exact match)' : 'ANY of these verticals'}
-                              </span>
-                              <span className="text-gray-300">|</span>
-                            </>
-                          )}
-                          <label className="flex items-center gap-1.5 cursor-pointer">
+                      <div className="p-3 border-b border-gray-200 bg-pink-50 space-y-2">
+                        {/* EXACT match - most important, shows first */}
+                        <div className="flex items-center gap-2 p-2 bg-white rounded border border-pink-200">
+                          <label className="flex items-center gap-2 cursor-pointer flex-1">
                             <input
                               type="checkbox"
-                              checked={verticalsNot}
-                              onChange={(e) => setVerticalsNot(e.target.checked)}
-                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                              checked={verticalsExact}
+                              onChange={(e) => setVerticalsExact(e.target.checked)}
+                              className="rounded border-gray-300 text-pink-600 focus:ring-pink-500 w-4 h-4"
                             />
-                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-pink-700">EXACT MATCH ONLY</span>
+                              <span className="text-xs text-gray-600">Show companies with ONLY {selectedVerticals.join(' + ')}, no other verticals</span>
+                            </div>
                           </label>
                         </div>
+
+                        {/* AND/OR and NOT toggles - only if not using EXACT */}
+                        {!verticalsExact && (
+                          <div className="flex items-center gap-3 flex-wrap">
+                            {selectedVerticals.length >= 2 && (
+                              <>
+                                <span className="text-xs font-medium text-gray-700">Match:</span>
+                                <OperatorToggle value={verticalsOperator} onChange={setVerticalsOperator} />
+                                <span className="text-xs text-gray-600">
+                                  {verticalsOperator === 'AND' ? 'ALL selected verticals' : 'ANY selected vertical'}
+                                </span>
+                                <span className="text-gray-300">|</span>
+                              </>
+                            )}
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={verticalsNot}
+                                onChange={(e) => setVerticalsNot(e.target.checked)}
+                                className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                              />
+                              <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                            </label>
+                          </div>
+                        )}
                       </div>
                     )}
                     <div className="p-2 space-y-1">

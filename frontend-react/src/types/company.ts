@@ -153,6 +153,10 @@ export interface CompanyFilters {
   country_operator?: FilterOperator  // AND/OR for multiple countries
   state_region_operator?: FilterOperator  // AND/OR for multiple states
   city_operator?: FilterOperator  // AND/OR for multiple cities
+  // EXACT match flags (only these values, no others)
+  verticals_exact?: boolean  // Only companies with exactly these verticals, no additional ones
+  industry_group_exact?: boolean  // Only companies with exactly these groups
+  industry_sector_exact?: boolean  // Only companies with exactly these sectors
   // NOT operators (negation filters)
   pe_firm_not?: boolean  // Exclude companies with these PE firms
   industry_not?: boolean  // Exclude companies with these industries
