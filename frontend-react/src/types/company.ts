@@ -142,6 +142,15 @@ export interface CompanyFilters {
   country_operator?: FilterOperator  // AND/OR for multiple countries
   state_region_operator?: FilterOperator  // AND/OR for multiple states
   city_operator?: FilterOperator  // AND/OR for multiple cities
+  // NOT operators (negation filters)
+  pe_firm_not?: boolean  // Exclude companies with these PE firms
+  industry_not?: boolean  // Exclude companies with these industries
+  industry_group_not?: boolean  // Exclude companies with these industry groups
+  industry_sector_not?: boolean  // Exclude companies with these industry sectors
+  verticals_not?: boolean  // Exclude companies with these verticals
+  country_not?: boolean  // Exclude companies in these countries
+  state_region_not?: boolean  // Exclude companies in these states
+  city_not?: boolean  // Exclude companies in these cities
 }
 
 export interface LocationData {

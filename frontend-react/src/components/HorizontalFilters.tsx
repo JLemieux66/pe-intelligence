@@ -36,6 +36,15 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
   const [stateOperator, setStateOperator] = useState<'AND' | 'OR'>('OR')
   const [cityOperator, setCityOperator] = useState<'AND' | 'OR'>('OR')
 
+  // NOT operators (negation)
+  const [peFirmNot, setPeFirmNot] = useState(false)
+  const [industryGroupNot, setIndustryGroupNot] = useState(false)
+  const [industrySectorNot, setIndustrySectorNot] = useState(false)
+  const [verticalsNot, setVerticalsNot] = useState(false)
+  const [countryNot, setCountryNot] = useState(false)
+  const [stateNot, setStateNot] = useState(false)
+  const [cityNot, setCityNot] = useState(false)
+
   // Dropdown open states
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
@@ -62,31 +71,38 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     if (selectedFirms.length > 0) {
       filters.pe_firm = selectedFirms.join(',')
       filters.pe_firm_operator = peFirmOperator
+      filters.pe_firm_not = peFirmNot
     }
     if (selectedStatus) filters.status = selectedStatus
     if (selectedIndustryGroups.length > 0) {
       filters.industry_group = selectedIndustryGroups.join(',')
       filters.industry_group_operator = industryGroupOperator
+      filters.industry_group_not = industryGroupNot
     }
     if (selectedIndustrySectors.length > 0) {
       filters.industry_sector = selectedIndustrySectors.join(',')
       filters.industry_sector_operator = industrySectorOperator
+      filters.industry_sector_not = industrySectorNot
     }
     if (selectedVerticals.length > 0) {
       filters.verticals = selectedVerticals.join(',')
       filters.verticals_operator = verticalsOperator
+      filters.verticals_not = verticalsNot
     }
     if (selectedCountries.length > 0) {
       filters.country = selectedCountries.join(',')
       filters.country_operator = countryOperator
+      filters.country_not = countryNot
     }
     if (selectedStates.length > 0) {
       filters.state_region = selectedStates.join(',')
       filters.state_region_operator = stateOperator
+      filters.state_region_not = stateNot
     }
     if (selectedCities.length > 0) {
       filters.city = selectedCities.join(',')
       filters.city_operator = cityOperator
+      filters.city_not = cityNot
     }
     if (minRevenue) filters.min_revenue = parseFloat(minRevenue)
     if (maxRevenue) filters.max_revenue = parseFloat(maxRevenue)
@@ -99,7 +115,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
 
     console.log('HorizontalFilters - Applying filters:', filters)
     onFilterChange(filters)
-  }, [search, searchExact, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, isPublic, filterOperator, peFirmOperator, industryGroupOperator, industrySectorOperator, verticalsOperator, countryOperator, stateOperator, cityOperator, onFilterChange])
+  }, [search, searchExact, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, isPublic, filterOperator, peFirmOperator, industryGroupOperator, industrySectorOperator, verticalsOperator, countryOperator, stateOperator, cityOperator, peFirmNot, industryGroupNot, industrySectorNot, verticalsNot, countryNot, stateNot, cityNot, onFilterChange])
 
   const toggleSelection = (value: string, currentList: string[], setter: (list: string[]) => void) => {
     console.log('toggleSelection called', value, 'openDropdown:', openDropdown)
@@ -134,6 +150,13 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     setCountryOperator('OR')
     setStateOperator('OR')
     setCityOperator('OR')
+    setPeFirmNot(false)
+    setIndustryGroupNot(false)
+    setIndustrySectorNot(false)
+    setVerticalsNot(false)
+    setCountryNot(false)
+    setStateNot(false)
+    setCityNot(false)
   }
 
   const activeFilterCount = [
@@ -269,15 +292,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                 <div
                   className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                 >
-                  {/* Operator Toggle - Only show when 2+ selected */}
-                  {selectedFirms.length >= 2 && (
+                  {/* Operator Toggle - Only show when items selected */}
+                  {selectedFirms.length > 0 && (
                     <div className="p-3 border-b border-gray-200 bg-blue-50">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-700">Match:</span>
-                        <OperatorToggle value={peFirmOperator} onChange={setPeFirmOperator} />
-                        <span className="text-xs text-gray-600">
-                          {peFirmOperator === 'AND' ? 'ALL selected firms' : 'ANY selected firm'}
-                        </span>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {selectedFirms.length >= 2 && (
+                          <>
+                            <span className="text-xs font-medium text-gray-700">Match:</span>
+                            <OperatorToggle value={peFirmOperator} onChange={setPeFirmOperator} />
+                            <span className="text-xs text-gray-600">
+                              {peFirmOperator === 'AND' ? 'ALL selected firms' : 'ANY selected firm'}
+                            </span>
+                            <span className="text-gray-300">|</span>
+                          </>
+                        )}
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={peFirmNot}
+                            onChange={(e) => setPeFirmNot(e.target.checked)}
+                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                          />
+                          <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                        </label>
                       </div>
                     </div>
                   )}
@@ -394,15 +431,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedIndustrySectors.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedIndustrySectors.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-purple-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={industrySectorOperator} onChange={setIndustrySectorOperator} />
-                          <span className="text-xs text-gray-600">
-                            {industrySectorOperator === 'AND' ? 'ALL selected sectors' : 'ANY selected sector'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedIndustrySectors.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={industrySectorOperator} onChange={setIndustrySectorOperator} />
+                              <span className="text-xs text-gray-600">
+                                {industrySectorOperator === 'AND' ? 'ALL selected sectors' : 'ANY selected sector'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={industrySectorNot}
+                              onChange={(e) => setIndustrySectorNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -461,15 +512,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedIndustryGroups.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedIndustryGroups.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-indigo-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={industryGroupOperator} onChange={setIndustryGroupOperator} />
-                          <span className="text-xs text-gray-600">
-                            {industryGroupOperator === 'AND' ? 'ALL selected groups' : 'ANY selected group'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedIndustryGroups.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={industryGroupOperator} onChange={setIndustryGroupOperator} />
+                              <span className="text-xs text-gray-600">
+                                {industryGroupOperator === 'AND' ? 'ALL selected groups' : 'ANY selected group'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={industryGroupNot}
+                              onChange={(e) => setIndustryGroupNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -528,15 +593,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedVerticals.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedVerticals.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-pink-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={verticalsOperator} onChange={setVerticalsOperator} />
-                          <span className="text-xs text-gray-600">
-                            {verticalsOperator === 'AND' ? 'ONLY these verticals (exact match)' : 'ANY of these verticals'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedVerticals.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={verticalsOperator} onChange={setVerticalsOperator} />
+                              <span className="text-xs text-gray-600">
+                                {verticalsOperator === 'AND' ? 'ONLY these verticals (exact match)' : 'ANY of these verticals'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={verticalsNot}
+                              onChange={(e) => setVerticalsNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -595,15 +674,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedCountries.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedCountries.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-emerald-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={countryOperator} onChange={setCountryOperator} />
-                          <span className="text-xs text-gray-600">
-                            {countryOperator === 'AND' ? 'ALL selected countries' : 'ANY selected country'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedCountries.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={countryOperator} onChange={setCountryOperator} />
+                              <span className="text-xs text-gray-600">
+                                {countryOperator === 'AND' ? 'ALL selected countries' : 'ANY selected country'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={countryNot}
+                              onChange={(e) => setCountryNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -663,15 +756,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedStates.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedStates.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-teal-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={stateOperator} onChange={setStateOperator} />
-                          <span className="text-xs text-gray-600">
-                            {stateOperator === 'AND' ? 'ALL selected states' : 'ANY selected state'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedStates.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={stateOperator} onChange={setStateOperator} />
+                              <span className="text-xs text-gray-600">
+                                {stateOperator === 'AND' ? 'ALL selected states' : 'ANY selected state'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={stateNot}
+                              onChange={(e) => setStateNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -736,15 +843,29 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
-                    {/* Operator Toggle - Only show when 2+ selected */}
-                    {selectedCities.length >= 2 && (
+                    {/* Operator Toggle - Only show when items selected */}
+                    {selectedCities.length > 0 && (
                       <div className="p-3 border-b border-gray-200 bg-cyan-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">Match:</span>
-                          <OperatorToggle value={cityOperator} onChange={setCityOperator} />
-                          <span className="text-xs text-gray-600">
-                            {cityOperator === 'AND' ? 'ALL selected cities' : 'ANY selected city'}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {selectedCities.length >= 2 && (
+                            <>
+                              <span className="text-xs font-medium text-gray-700">Match:</span>
+                              <OperatorToggle value={cityOperator} onChange={setCityOperator} />
+                              <span className="text-xs text-gray-600">
+                                {cityOperator === 'AND' ? 'ALL selected cities' : 'ANY selected city'}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                            </>
+                          )}
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={cityNot}
+                              onChange={(e) => setCityNot(e.target.checked)}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-medium text-red-700">NOT (Exclude)</span>
+                          </label>
                         </div>
                       </div>
                     )}
