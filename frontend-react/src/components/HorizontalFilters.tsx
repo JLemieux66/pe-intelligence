@@ -359,18 +359,18 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
       </div>
 
       {/* Filter Bar */}
-      <div className="px-6 py-4">
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="px-6 py-3">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Search */}
-          <div className="flex-1 min-w-[240px]">
+          <div className="flex-1 min-w-[200px]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search companies..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white text-gray-900 placeholder:text-gray-400"
+                className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white text-gray-900 placeholder:text-gray-400"
               />
             </div>
             {search && (
@@ -379,18 +379,18 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   type="checkbox"
                   checked={searchExact}
                   onChange={(e) => setSearchExact(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-1.5"
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-1.5 w-3 h-3"
                 />
-                Exact match only
+                <span className="font-medium">EXACT match</span>
               </label>
             )}
           </div>
 
           {/* PE Firms Dropdown */}
           <div className="relative">
-            <button 
+            <button
               onClick={() => setOpenDropdown(openDropdown === 'firms' ? null : 'firms')}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[100px] justify-between"
             >
               <span>
                 PE Firms {selectedFirms.length > 0 && (
@@ -399,7 +399,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   </span>
                 )}
               </span>
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {openDropdown === 'firms' && (
               <>
@@ -478,12 +478,12 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
 
           {/* Status Dropdown */}
           <div className="relative">
-            <button 
+            <button
               onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[120px] justify-between"
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[90px] justify-between"
             >
               <span>{selectedStatus || 'Status'}</span>
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {openDropdown === 'status' && (
               <>
@@ -528,7 +528,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
             <div className="relative">
               <button 
                 onClick={() => setOpenDropdown(openDropdown === 'industry_sector' ? null : 'industry_sector')}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[110px] justify-between"
               >
                 <span>
                   Industry Sector {selectedIndustrySectors.length > 0 && (
@@ -537,7 +537,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                     </span>
                   )}
                 </span>
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {openDropdown === 'industry_sector' && (
                 <>
@@ -610,7 +610,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
             <div className="relative">
               <button 
                 onClick={() => setOpenDropdown(openDropdown === 'industry_group' ? null : 'industry_group')}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[110px] justify-between"
               >
                 <span>
                   Industry Group {selectedIndustryGroups.length > 0 && (
@@ -619,7 +619,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                     </span>
                   )}
                 </span>
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {openDropdown === 'industry_group' && (
                 <>
@@ -691,7 +691,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
             <div className="relative">
               <button 
                 onClick={() => setOpenDropdown(openDropdown === 'verticals' ? null : 'verticals')}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[120px] justify-between"
+                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[95px] justify-between"
               >
                 <span>
                   Verticals {selectedVerticals.length > 0 && (
@@ -700,7 +700,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                     </span>
                   )}
                 </span>
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {openDropdown === 'verticals' && (
                 <>
@@ -772,7 +772,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
             <div className="relative">
               <button 
                 onClick={() => setOpenDropdown(openDropdown === 'country' ? null : 'country')}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[110px] justify-between"
               >
                 <span>
                   Country {selectedCountries.length > 0 && (
@@ -781,7 +781,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                     </span>
                   )}
                 </span>
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {openDropdown === 'country' && (
                 <>
@@ -854,7 +854,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
             <div className="relative">
               <button 
                 onClick={() => setOpenDropdown(openDropdown === 'state' ? null : 'state')}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[110px] justify-between"
               >
                 <span>
                   State/Region {selectedStates.length > 0 && (
@@ -863,7 +863,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                     </span>
                   )}
                 </span>
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {openDropdown === 'state' && (
                 <>
@@ -941,7 +941,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
             <div className="relative">
               <button 
                 onClick={() => setOpenDropdown(openDropdown === 'city' ? null : 'city')}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[120px] justify-between"
+                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[95px] justify-between"
               >
                 <span>
                   City {selectedCities.length > 0 && (
@@ -950,7 +950,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                     </span>
                   )}
                 </span>
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {openDropdown === 'city' && (
                 <>
@@ -1029,14 +1029,14 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
           <div className="relative">
             <button 
               onClick={() => setOpenDropdown(openDropdown === 'revenue' ? null : 'revenue')}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[120px] justify-between"
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[95px] justify-between"
             >
               <span>
                 Revenue {(minRevenue || maxRevenue) && (
                   <span className="ml-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">•</span>
                 )}
               </span>
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {openDropdown === 'revenue' && (
               <>
@@ -1082,14 +1082,14 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
           <div className="relative">
             <button 
               onClick={() => setOpenDropdown(openDropdown === 'employees' ? null : 'employees')}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[110px] justify-between"
             >
               <span>
                 Employees {(minEmployees || maxEmployees) && (
                   <span className="ml-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-xs">•</span>
                 )}
               </span>
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {openDropdown === 'employees' && (
               <>
@@ -1135,14 +1135,14 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
           <div className="relative">
             <button
               onClick={() => setOpenDropdown(openDropdown === 'data_quality' ? null : 'data_quality')}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[110px] justify-between"
             >
               <span>
                 Data Quality {(hasLinkedIn !== undefined || hasWebsite !== undefined || hasRevenue !== undefined || hasEmployees !== undefined || hasDescription !== undefined) && (
                   <span className="ml-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">•</span>
                 )}
               </span>
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {openDropdown === 'data_quality' && (
               <>
@@ -1217,14 +1217,14 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
           <div className="relative">
             <button
               onClick={() => setOpenDropdown(openDropdown === 'dates' ? null : 'dates')}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[120px] justify-between"
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[95px] justify-between"
             >
               <span>
                 Dates {(foundedYearMin || foundedYearMax || investmentYearMin || investmentYearMax) && (
                   <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs">•</span>
                 )}
               </span>
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {openDropdown === 'dates' && (
               <>
@@ -1301,7 +1301,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
           <div className="relative">
             <button
               onClick={() => setOpenDropdown(openDropdown === 'saved_filters' ? null : 'saved_filters')}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 min-w-[110px] justify-between"
             >
               <span>
                 Saved Filters {savedPresets.length > 0 && (
@@ -1310,7 +1310,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                   </span>
                 )}
               </span>
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {openDropdown === 'saved_filters' && (
               <>
@@ -1391,9 +1391,9 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
           {activeFilterCount > 0 && (
             <button
               onClick={handleReset}
-              className="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2 transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-md flex items-center gap-1.5 transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
               Clear ({activeFilterCount})
             </button>
           )}
