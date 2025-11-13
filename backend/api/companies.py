@@ -5,7 +5,7 @@ from typing import Optional, List, Dict
 from fastapi import APIRouter, Query, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from backend.schemas.responses import CompanyResponse, SimilarCompaniesResponse
-from backend.schemas.requests import CompanyUpdate, SimilarCompaniesRequest
+from backend.schemas.requests import CompanyUpdate, CompanyCreate, SimilarCompaniesRequest
 from backend.services import CompanyService
 from src.models.database_models_v2 import get_session
 from backend.auth import verify_admin_token
@@ -91,6 +91,79 @@ def get_companies(
         companies, total_count = company_service.get_companies(filters, limit, offset)
         response.headers["X-Total-Count"] = str(total_count)
         return companies
+
+
+@router.post("/companies", response_model=CompanyResponse, dependencies=[Depends(verify_admin_token)])
+async def create_company(company_create: CompanyCreate, session = Depends(get_session)):
+    """
+    Create a new company with all associated data (Admin only)
+
+    This endpoint allows creating a company with:
+    - Basic company information (name, website, description, etc.)
+    - Geographic data (country, state, city, HQ location)
+    - Industry classification (category, sector, verticals)
+    - Employee and revenue data
+    - Funding information
+    - IPO/public company data
+    - Associated tags (industry tags, etc.)
+    - Funding rounds
+    - PE firm investments
+
+    The only required field is `name`. All other fields are optional.
+
+    Example minimal request:
+    ```json
+    {
+        "name": "Acme Corporation"
+    }
+    ```
+
+    Example full request:
+    ```json
+    {
+        "name": "Acme Corporation",
+        "website": "https://acme.com",
+        "description": "Leading enterprise software company",
+        "country": "United States",
+        "city": "San Francisco",
+        "state_region": "California",
+        "industry_category": "Software",
+        "primary_industry_sector": "Enterprise Software",
+        "employee_count": 500,
+        "current_revenue_usd": 50.0,
+        "founded_year": 2015,
+        "tags": [
+            {"tag_category": "industry", "tag_value": "SaaS"},
+            {"tag_category": "industry", "tag_value": "Analytics"}
+        ],
+        "funding_rounds": [
+            {
+                "announced_on": "2020-05-15",
+                "investment_type": "series_b",
+                "money_raised_usd": 25000000,
+                "investor_names": "Sequoia Capital, Andreessen Horowitz",
+                "num_investors": 2
+            }
+        ],
+        "pe_investments": [
+            {
+                "pe_firm_name": "Vista Equity Partners",
+                "computed_status": "Active",
+                "investment_year": "2020"
+            }
+        ]
+    }
+    ```
+    """
+
+    with CompanyService(session) as company_service:
+        company_response = company_service.create_company(company_create)
+        if not company_response:
+            raise HTTPException(
+                status_code=400,
+                detail="Company creation failed. Company with this name/website may already exist."
+            )
+        return company_response
 
 
 @router.get("/companies/export/with-revenue")

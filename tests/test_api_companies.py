@@ -322,6 +322,227 @@ class TestDeleteCompany:
             assert response.status_code in [401, 403, 500]
 
 
+class TestCreateCompany:
+    """Test /api/companies POST endpoint"""
+
+    def test_create_company_minimal(self, client, mock_auth, mock_db_session):
+        """Test creating company with minimal required fields"""
+        mock_company = CompanyResponse(
+            id=1,
+            name="New Company",
+            pe_firms=[],
+            investment_status="Unknown",
+            country=None,
+            state_region=None,
+            city=None,
+            revenue=None,
+            employee_count=None,
+            industry_tags=[]
+        )
+
+        with patch('backend.api.companies.CompanyService') as MockService:
+            mock_service = MockService.return_value.__enter__.return_value
+            mock_service.create_company.return_value = mock_company
+
+            response = client.post(
+                "/api/companies",
+                json={"name": "New Company"}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["id"] == 1
+            assert data["name"] == "New Company"
+
+    def test_create_company_full(self, client, mock_auth, mock_db_session):
+        """Test creating company with all fields"""
+        mock_company = CompanyResponse(
+            id=1,
+            name="Acme Corporation",
+            pe_firms=["Vista Equity Partners"],
+            investment_status="Active",
+            country="United States",
+            state_region="California",
+            city="San Francisco",
+            revenue=50.0,
+            employee_count="500",
+            industry_tags=["SaaS", "Analytics"]
+        )
+
+        with patch('backend.api.companies.CompanyService') as MockService:
+            mock_service = MockService.return_value.__enter__.return_value
+            mock_service.create_company.return_value = mock_company
+
+            payload = {
+                "name": "Acme Corporation",
+                "website": "https://acme.com",
+                "description": "Leading enterprise software company",
+                "country": "United States",
+                "city": "San Francisco",
+                "state_region": "California",
+                "industry_category": "Software",
+                "primary_industry_sector": "Enterprise Software",
+                "employee_count": 500,
+                "current_revenue_usd": 50.0,
+                "founded_year": 2015,
+                "tags": [
+                    {"tag_category": "industry", "tag_value": "SaaS"},
+                    {"tag_category": "industry", "tag_value": "Analytics"}
+                ],
+                "funding_rounds": [
+                    {
+                        "announced_on": "2020-05-15",
+                        "investment_type": "series_b",
+                        "money_raised_usd": 25000000,
+                        "investor_names": "Sequoia Capital, Andreessen Horowitz",
+                        "num_investors": 2
+                    }
+                ],
+                "pe_investments": [
+                    {
+                        "pe_firm_name": "Vista Equity Partners",
+                        "computed_status": "Active",
+                        "investment_year": "2020"
+                    }
+                ]
+            }
+
+            response = client.post("/api/companies", json=payload)
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["id"] == 1
+            assert data["name"] == "Acme Corporation"
+
+    def test_create_company_duplicate(self, client, mock_auth, mock_db_session):
+        """Test creating duplicate company fails"""
+        with patch('backend.api.companies.CompanyService') as MockService:
+            mock_service = MockService.return_value.__enter__.return_value
+            mock_service.create_company.return_value = None  # Indicates failure
+
+            response = client.post(
+                "/api/companies",
+                json={"name": "Existing Company", "website": "https://existing.com"}
+            )
+
+            assert response.status_code == 400
+            assert "already exist" in response.json()["detail"].lower()
+
+    def test_create_company_requires_auth(self, client, mock_db_session):
+        """Test that create requires authentication"""
+        with patch('backend.api.companies.verify_admin_token') as mock_auth:
+            mock_auth.side_effect = Exception("Not authenticated")
+
+            response = client.post(
+                "/api/companies",
+                json={"name": "New Company"}
+            )
+
+            assert response.status_code in [401, 403, 500]
+
+    def test_create_company_with_tags(self, client, mock_auth, mock_db_session):
+        """Test creating company with tags"""
+        mock_company = CompanyResponse(
+            id=1,
+            name="Tagged Company",
+            pe_firms=[],
+            investment_status="Unknown",
+            country=None,
+            state_region=None,
+            city=None,
+            revenue=None,
+            employee_count=None,
+            industry_tags=["SaaS", "Cloud"]
+        )
+
+        with patch('backend.api.companies.CompanyService') as MockService:
+            mock_service = MockService.return_value.__enter__.return_value
+            mock_service.create_company.return_value = mock_company
+
+            response = client.post(
+                "/api/companies",
+                json={
+                    "name": "Tagged Company",
+                    "tags": [
+                        {"tag_category": "industry", "tag_value": "SaaS"},
+                        {"tag_category": "industry", "tag_value": "Cloud"}
+                    ]
+                }
+            )
+
+            assert response.status_code == 200
+
+    def test_create_company_with_funding_rounds(self, client, mock_auth, mock_db_session):
+        """Test creating company with funding rounds"""
+        mock_company = CompanyResponse(
+            id=1,
+            name="Funded Company",
+            pe_firms=[],
+            investment_status="Unknown",
+            country=None,
+            state_region=None,
+            city=None,
+            revenue=None,
+            employee_count=None,
+            industry_tags=[]
+        )
+
+        with patch('backend.api.companies.CompanyService') as MockService:
+            mock_service = MockService.return_value.__enter__.return_value
+            mock_service.create_company.return_value = mock_company
+
+            response = client.post(
+                "/api/companies",
+                json={
+                    "name": "Funded Company",
+                    "funding_rounds": [
+                        {
+                            "announced_on": "2020-01-15",
+                            "investment_type": "seed",
+                            "money_raised_usd": 1000000
+                        }
+                    ]
+                }
+            )
+
+            assert response.status_code == 200
+
+    def test_create_company_with_pe_investments(self, client, mock_auth, mock_db_session):
+        """Test creating company with PE investments"""
+        mock_company = CompanyResponse(
+            id=1,
+            name="PE Backed Company",
+            pe_firms=["Test PE Firm"],
+            investment_status="Active",
+            country=None,
+            state_region=None,
+            city=None,
+            revenue=None,
+            employee_count=None,
+            industry_tags=[]
+        )
+
+        with patch('backend.api.companies.CompanyService') as MockService:
+            mock_service = MockService.return_value.__enter__.return_value
+            mock_service.create_company.return_value = mock_company
+
+            response = client.post(
+                "/api/companies",
+                json={
+                    "name": "PE Backed Company",
+                    "pe_investments": [
+                        {
+                            "pe_firm_name": "Test PE Firm",
+                            "computed_status": "Active",
+                            "investment_year": "2021"
+                        }
+                    ]
+                }
+            )
+
+            assert response.status_code == 200
+
+
 class TestCompaniesEndpointIntegration:
     """Integration tests for companies endpoints"""
 
