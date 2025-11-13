@@ -11,6 +11,7 @@ interface HorizontalFiltersProps {
 
 export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterChange }: HorizontalFiltersProps) {
   const [search, setSearch] = useState('')
+  const [searchExact, setSearchExact] = useState(false)
   const [selectedFirms, setSelectedFirms] = useState<string[]>([])
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [selectedIndustryGroups, setSelectedIndustryGroups] = useState<string[]>([])
@@ -23,7 +24,18 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
   const [maxRevenue, setMaxRevenue] = useState('')
   const [minEmployees, setMinEmployees] = useState('')
   const [maxEmployees, setMaxEmployees] = useState('')
-  
+  const [isPublic, setIsPublic] = useState<boolean | undefined>(undefined)
+
+  // Filter operators
+  const [filterOperator, setFilterOperator] = useState<'AND' | 'OR'>('AND')
+  const [peFirmOperator, setPeFirmOperator] = useState<'AND' | 'OR'>('OR')
+  const [industryGroupOperator, setIndustryGroupOperator] = useState<'AND' | 'OR'>('OR')
+  const [industrySectorOperator, setIndustrySectorOperator] = useState<'AND' | 'OR'>('OR')
+  const [verticalsOperator, setVerticalsOperator] = useState<'AND' | 'OR'>('OR')
+  const [countryOperator, setCountryOperator] = useState<'AND' | 'OR'>('OR')
+  const [stateOperator, setStateOperator] = useState<'AND' | 'OR'>('OR')
+  const [cityOperator, setCityOperator] = useState<'AND' | 'OR'>('OR')
+
   // Dropdown open states
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
@@ -43,24 +55,51 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
   // Apply filters automatically whenever any filter changes
   useEffect(() => {
     const filters: CompanyFilters = {}
-    if (search) filters.search = search
-    if (selectedFirms.length > 0) filters.pe_firm = selectedFirms.join(',')
+    if (search) {
+      filters.search = search
+      filters.search_exact = searchExact
+    }
+    if (selectedFirms.length > 0) {
+      filters.pe_firm = selectedFirms.join(',')
+      filters.pe_firm_operator = peFirmOperator
+    }
     if (selectedStatus) filters.status = selectedStatus
-    if (selectedIndustryGroups.length > 0) filters.industry_group = selectedIndustryGroups.join(',')
-    if (selectedIndustrySectors.length > 0) filters.industry_sector = selectedIndustrySectors.join(',')
-    if (selectedVerticals.length > 0) filters.verticals = selectedVerticals.join(',')
-
-    if (selectedCountries.length > 0) filters.country = selectedCountries.join(',')
-    if (selectedStates.length > 0) filters.state_region = selectedStates.join(',')
-    if (selectedCities.length > 0) filters.city = selectedCities.join(',')
+    if (selectedIndustryGroups.length > 0) {
+      filters.industry_group = selectedIndustryGroups.join(',')
+      filters.industry_group_operator = industryGroupOperator
+    }
+    if (selectedIndustrySectors.length > 0) {
+      filters.industry_sector = selectedIndustrySectors.join(',')
+      filters.industry_sector_operator = industrySectorOperator
+    }
+    if (selectedVerticals.length > 0) {
+      filters.verticals = selectedVerticals.join(',')
+      filters.verticals_operator = verticalsOperator
+    }
+    if (selectedCountries.length > 0) {
+      filters.country = selectedCountries.join(',')
+      filters.country_operator = countryOperator
+    }
+    if (selectedStates.length > 0) {
+      filters.state_region = selectedStates.join(',')
+      filters.state_region_operator = stateOperator
+    }
+    if (selectedCities.length > 0) {
+      filters.city = selectedCities.join(',')
+      filters.city_operator = cityOperator
+    }
     if (minRevenue) filters.min_revenue = parseFloat(minRevenue)
     if (maxRevenue) filters.max_revenue = parseFloat(maxRevenue)
     if (minEmployees) filters.min_employees = parseInt(minEmployees)
     if (maxEmployees) filters.max_employees = parseInt(maxEmployees)
-    
+    if (isPublic !== undefined) filters.is_public = isPublic
+
+    // Global filter operator
+    filters.filter_operator = filterOperator
+
     console.log('HorizontalFilters - Applying filters:', filters)
     onFilterChange(filters)
-  }, [search, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, onFilterChange])
+  }, [search, searchExact, selectedFirms, selectedStatus, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, isPublic, filterOperator, peFirmOperator, industryGroupOperator, industrySectorOperator, verticalsOperator, countryOperator, stateOperator, cityOperator, onFilterChange])
 
   const toggleSelection = (value: string, currentList: string[], setter: (list: string[]) => void) => {
     console.log('toggleSelection called', value, 'openDropdown:', openDropdown)
@@ -73,6 +112,7 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
 
   const handleReset = () => {
     setSearch('')
+    setSearchExact(false)
     setSelectedFirms([])
     setSelectedStatus('')
     setSelectedIndustryGroups([])
@@ -85,6 +125,15 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     setMaxRevenue('')
     setMinEmployees('')
     setMaxEmployees('')
+    setIsPublic(undefined)
+    setFilterOperator('AND')
+    setPeFirmOperator('OR')
+    setIndustryGroupOperator('OR')
+    setIndustrySectorOperator('OR')
+    setVerticalsOperator('OR')
+    setCountryOperator('OR')
+    setStateOperator('OR')
+    setCityOperator('OR')
   }
 
   const activeFilterCount = [
@@ -114,21 +163,82 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
     return true
   }) || []
 
+  // Reusable operator toggle component
+  const OperatorToggle = ({ value, onChange }: { value: 'AND' | 'OR', onChange: (val: 'AND' | 'OR') => void }) => (
+    <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
+      <button
+        onClick={() => onChange('OR')}
+        className={`px-2 py-1 text-xs font-semibold rounded transition-colors ${
+          value === 'OR'
+            ? 'bg-white text-blue-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-800'
+        }`}
+      >
+        OR
+      </button>
+      <button
+        onClick={() => onChange('AND')}
+        className={`px-2 py-1 text-xs font-semibold rounded transition-colors ${
+          value === 'AND'
+            ? 'bg-white text-blue-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-800'
+        }`}
+      >
+        AND
+      </button>
+    </div>
+  )
+
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
+      {/* Global Operator Bar */}
+      <div className="px-6 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-gray-700">Combine Filters:</span>
+            <OperatorToggle value={filterOperator} onChange={setFilterOperator} />
+            <span className="text-xs text-gray-600">
+              {filterOperator === 'AND' ? '(Match ALL conditions)' : '(Match ANY condition)'}
+            </span>
+          </div>
+          {activeFilterCount > 0 && (
+            <button
+              onClick={handleReset}
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              Clear All ({activeFilterCount})
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Filter Bar */}
       <div className="px-6 py-4">
         <div className="flex items-center gap-3 flex-wrap">
           {/* Search */}
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search companies..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white text-gray-900 placeholder:text-gray-400"
-            />
+          <div className="flex-1 min-w-[240px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search companies..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white text-gray-900 placeholder:text-gray-400"
+              />
+            </div>
+            {search && (
+              <label className="flex items-center mt-1 text-xs text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={searchExact}
+                  onChange={(e) => setSearchExact(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-1.5"
+                />
+                Exact match only
+              </label>
+            )}
           </div>
 
           {/* PE Firms Dropdown */}
@@ -156,9 +266,21 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                     }
                   }} 
                 />
-                <div 
+                <div
                   className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                 >
+                  {/* Operator Toggle - Only show when 2+ selected */}
+                  {selectedFirms.length >= 2 && (
+                    <div className="p-3 border-b border-gray-200 bg-blue-50">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-700">Match:</span>
+                        <OperatorToggle value={peFirmOperator} onChange={setPeFirmOperator} />
+                        <span className="text-xs text-gray-600">
+                          {peFirmOperator === 'AND' ? 'ALL selected firms' : 'ANY selected firm'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   <div className="p-2 space-y-1">
                     {peFirmsLoading ? (
                       <div className="px-3 py-8 text-center text-sm text-gray-500">
@@ -269,9 +391,21 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                       }
                     }} 
                   />
-                  <div 
+                  <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
+                    {/* Operator Toggle - Only show when 2+ selected */}
+                    {selectedIndustrySectors.length >= 2 && (
+                      <div className="p-3 border-b border-gray-200 bg-purple-50">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700">Match:</span>
+                          <OperatorToggle value={industrySectorOperator} onChange={setIndustrySectorOperator} />
+                          <span className="text-xs text-gray-600">
+                            {industrySectorOperator === 'AND' ? 'ALL selected sectors' : 'ANY selected sector'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <div className="p-2 space-y-1">
                       {industrySectors.map((sector) => (
                         <label 
@@ -324,9 +458,21 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                       }
                     }} 
                   />
-                  <div 
+                  <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
+                    {/* Operator Toggle - Only show when 2+ selected */}
+                    {selectedIndustryGroups.length >= 2 && (
+                      <div className="p-3 border-b border-gray-200 bg-indigo-50">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700">Match:</span>
+                          <OperatorToggle value={industryGroupOperator} onChange={setIndustryGroupOperator} />
+                          <span className="text-xs text-gray-600">
+                            {industryGroupOperator === 'AND' ? 'ALL selected groups' : 'ANY selected group'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <div className="p-2 space-y-1">
                       {industryGroups.map((group) => (
                         <label 
@@ -379,9 +525,21 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                       }
                     }} 
                   />
-                  <div 
+                  <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
+                    {/* Operator Toggle - Only show when 2+ selected */}
+                    {selectedVerticals.length >= 2 && (
+                      <div className="p-3 border-b border-gray-200 bg-pink-50">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700">Match:</span>
+                          <OperatorToggle value={verticalsOperator} onChange={setVerticalsOperator} />
+                          <span className="text-xs text-gray-600">
+                            {verticalsOperator === 'AND' ? 'ONLY these verticals (exact match)' : 'ANY of these verticals'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <div className="p-2 space-y-1">
                       {verticals.map((vertical) => (
                         <label 
@@ -434,9 +592,21 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                       }
                     }} 
                   />
-                  <div 
+                  <div
                     className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
+                    {/* Operator Toggle - Only show when 2+ selected */}
+                    {selectedCountries.length >= 2 && (
+                      <div className="p-3 border-b border-gray-200 bg-emerald-50">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700">Match:</span>
+                          <OperatorToggle value={countryOperator} onChange={setCountryOperator} />
+                          <span className="text-xs text-gray-600">
+                            {countryOperator === 'AND' ? 'ALL selected countries' : 'ANY selected country'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <div className="p-2 space-y-1">
                       {locationsData.countries.map((country) => (
                         <label 
@@ -490,9 +660,21 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                       }
                     }}
                   />
-                  <div 
+                  <div
                     className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
+                    {/* Operator Toggle - Only show when 2+ selected */}
+                    {selectedStates.length >= 2 && (
+                      <div className="p-3 border-b border-gray-200 bg-teal-50">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700">Match:</span>
+                          <OperatorToggle value={stateOperator} onChange={setStateOperator} />
+                          <span className="text-xs text-gray-600">
+                            {stateOperator === 'AND' ? 'ALL selected states' : 'ANY selected state'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <div className="p-2 space-y-1">
                       {filteredStates.map((state) => (
                         <label 
@@ -551,9 +733,21 @@ export default function HorizontalFilters({ peFirms, peFirmsLoading, onFilterCha
                       }
                     }} 
                   />
-                  <div 
+                  <div
                     className="absolute top-full left-0 mt-1 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
                   >
+                    {/* Operator Toggle - Only show when 2+ selected */}
+                    {selectedCities.length >= 2 && (
+                      <div className="p-3 border-b border-gray-200 bg-cyan-50">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700">Match:</span>
+                          <OperatorToggle value={cityOperator} onChange={setCityOperator} />
+                          <span className="text-xs text-gray-600">
+                            {cityOperator === 'AND' ? 'ALL selected cities' : 'ANY selected city'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <div className="p-2 space-y-1">
                       {filteredCities.slice(0, 100).map((city) => (
                         <label 
