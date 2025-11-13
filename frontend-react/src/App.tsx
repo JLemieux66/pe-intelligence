@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { TrendingUp, LogIn, LogOut } from 'lucide-react'
+import { TrendingUp, LogIn, LogOut, Plus } from 'lucide-react'
 import { useStats, usePEFirms, useCompanies } from './hooks/useCompanies'
 import { fetchCompanies } from './api/client'
 import DashboardWidgets from './components/DashboardWidgets'
 import CompanyTable from './components/CompanyTable'
 import CompanyModal from './components/CompanyModal'
+import CompanyCreateModal from './components/CompanyCreateModal'
 import LoginModal from './components/LoginModal'
 import HorizontalFilters from './components/HorizontalFilters'
 import Pagination from './components/Pagination'
@@ -16,6 +17,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null)
   const [showLoginModal, setShowLoginModal] = useState(true) // Show login by default
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [adminEmail, setAdminEmail] = useState<string | null>(null)
   const { data: stats, isLoading: statsLoading } = useStats()
@@ -173,6 +175,13 @@ function App() {
             <div className="flex items-center gap-4">
               {isAdmin ? (
                 <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-lg shadow-blue-500/30"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Company
+                  </button>
                   <span className="text-sm text-blue-200">{adminEmail}</span>
                   <button
                     onClick={handleLogout}
@@ -263,6 +272,16 @@ function App() {
         <CompanyModal
           companyId={selectedCompanyId}
           onClose={() => setSelectedCompanyId(null)}
+        />
+      )}
+
+      {/* Company Create Modal */}
+      {showCreateModal && (
+        <CompanyCreateModal
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            refetchCompanies()
+          }}
         />
       )}
 

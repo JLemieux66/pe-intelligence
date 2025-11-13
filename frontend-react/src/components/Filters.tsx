@@ -25,6 +25,7 @@ export default function Filters({ peFirms, investments = [], onFilterChange }: F
   const [maxRevenue, setMaxRevenue] = useState('')
   const [minEmployees, setMinEmployees] = useState('')
   const [maxEmployees, setMaxEmployees] = useState('')
+  const [isPublic, setIsPublic] = useState<boolean | undefined>(undefined)
 
   // Filter operators
   const [filterOperator, setFilterOperator] = useState<'AND' | 'OR'>('AND')
@@ -80,13 +81,14 @@ export default function Filters({ peFirms, investments = [], onFilterChange }: F
     if (maxRevenue) filters.max_revenue = parseFloat(maxRevenue)
     if (minEmployees) filters.min_employees = parseInt(minEmployees)
     if (maxEmployees) filters.max_employees = parseInt(maxEmployees)
+    if (isPublic !== undefined) filters.is_public = isPublic
 
     // Set global filter operator
     filters.filter_operator = filterOperator
 
     onFilterChange(filters)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, searchExact, selectedFirms, selectedStatuses, selectedExitTypes, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, filterOperator, peFirmOperator, industryGroupOperator, industrySectorOperator, verticalsOperator, countryOperator, stateOperator, cityOperator])
+  }, [search, searchExact, selectedFirms, selectedStatuses, selectedExitTypes, selectedIndustryGroups, selectedIndustrySectors, selectedVerticals, selectedCountries, selectedStates, selectedCities, minRevenue, maxRevenue, minEmployees, maxEmployees, isPublic, filterOperator, peFirmOperator, industryGroupOperator, industrySectorOperator, verticalsOperator, countryOperator, stateOperator, cityOperator])
 
   const toggleSelection = (value: string, currentList: string[], setter: (list: string[]) => void) => {
     if (currentList.includes(value)) {
@@ -112,6 +114,7 @@ export default function Filters({ peFirms, investments = [], onFilterChange }: F
     setMaxRevenue('')
     setMinEmployees('')
     setMaxEmployees('')
+    setIsPublic(undefined)
     setFilterOperator('AND')
     setPeFirmOperator('OR')
     setIndustryGroupOperator('OR')
@@ -306,6 +309,40 @@ export default function Filters({ peFirms, investments = [], onFilterChange }: F
                 <span className="ml-2 text-sm text-gray-700">{exitType}</span>
               </label>
             ))}
+          </div>
+        </div>
+
+        {/* Public Status */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Company Type</label>
+          <div className="space-y-2">
+            <label className="flex items-center">
+              <input
+                type="radio"
+                checked={isPublic === undefined}
+                onChange={() => setIsPublic(undefined)}
+                className="border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm text-gray-700">All Companies</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                checked={isPublic === true}
+                onChange={() => setIsPublic(true)}
+                className="border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm text-gray-700">Public Only</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                checked={isPublic === false}
+                onChange={() => setIsPublic(false)}
+                className="border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm text-gray-700">Private Only</span>
+            </label>
           </div>
         </div>
 
