@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['python311', 'gcc', 'gfortran', 'liblapack']
+nixPkgs = ['python311', 'gfortran', 'liblapack', 'pkg-config']
 
 [phases.install]
 cmds = ['pip install --upgrade pip', 'pip install -r requirements.txt']
